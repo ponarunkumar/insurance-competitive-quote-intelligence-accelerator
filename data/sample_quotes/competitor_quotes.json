@@ -1,0 +1,72 @@
+[
+  {
+    "carrier": "Competitor A",
+    "annual_premium_gross": 8500,
+    "annual_premium_net": 7225,
+    "commission_percent": 15,
+    "per_occurrence_limit": 5000000,
+    "aggregate_limit": 10000000,
+    "deductible": 500,
+    "coverage_form": "Occurrence",
+    "key_exclusions": ["Asbestos", "Pollution (absolute)"],
+    "endorsements_included": ["Contractors extension", "Waiver of subrogation"],
+    "territory": "UK",
+    "financial_rating": "A (AM Best)"
+  },
+  {
+    "carrier": "Competitor B",
+    "annual_premium_gross": 9200,
+    "annual_premium_net": 7820,
+    "commission_percent": 15,
+    "per_occurrence_limit": 5000000,
+    "aggregate_limit": 5000000,
+    "deductible": 1000,
+    "coverage_form": "Occurrence",
+    "key_exclusions": ["Asbestos", "Pollution (absolute)", "EIFS/Cladding"],
+    "endorsements_included": ["Contractors extension"],
+    "territory": "UK",
+    "financial_rating": "A- (AM Best)"
+  },
+  {
+    "carrier": "Competitor C",
+    "annual_premium_gross": 7800,
+    "annual_premium_net": 6630,
+    "commission_percent": 15,
+    "per_occurrence_limit": 5000000,
+    "aggregate_limit": 10000000,
+    "deductible": 2500,
+    "coverage_form": "Occurrence",
+    "key_exclusions": ["Asbestos", "Pollution (limited buy-back)"],
+    "endorsements_included": ["Contractors extension", "JCT compliance", "Waiver of subrogation"],
+    "territory": "UK",
+    "financial_rating": "A+ (AM Best)"
+  },
+  {
+    "carrier": "Competitor D",
+    "annual_premium_gross": 8900,
+    "annual_premium_net": 7565,
+    "commission_percent": 15,
+    "per_occurrence_limit": 5000000,
+    "aggregate_limit": 10000000,
+    "deductible": 1000,
+    "coverage_form": "Occurrence",
+    "key_exclusions": ["Asbestos", "Pollution (absolute)", "Professional indemnity"],
+    "endorsements_included": ["Contractors extension", "Additional insured blanket"],
+    "territory": "UK",
+    "financial_rating": "A (AM Best)"
+  },
+  {
+    "carrier": "Competitor E",
+    "annual_premium_gross": 10100,
+    "annual_premium_net": 8585,
+    "commission_percent": 15,
+    "per_occurrence_limit": 10000000,
+    "aggregate_limit": 10000000,
+    "deductible": 500,
+    "coverage_form": "Occurrence",
+    "key_exclusions": ["Asbestos"],
+    "endorsements_included": ["Contractors extension", "JCT compliance", "Waiver of subrogation", "Pollution buy-back"],
+    "territory": "UK",
+    "financial_rating": "A++ (AM Best)"
+  }
+]

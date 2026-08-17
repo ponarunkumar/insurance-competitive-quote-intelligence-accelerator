@@ -1,0 +1,19 @@
+{
+  "submission_id": "DEMO-001",
+  "product_type": "commercial_general_liability",
+  "insured_name": "Apex Construction Ltd",
+  "business_description": "General building contractor specializing in commercial renovations and new builds",
+  "sic_code": "4520",
+  "annual_revenue": 2000000,
+  "currency": "GBP",
+  "employee_count": 25,
+  "locations": ["London, UK", "Manchester, UK"],
+  "territory": "UK",
+  "requested_limit": 5000000,
+  "requested_deductible": 1000,
+  "prior_carrier": "Competitor A",
+  "years_with_prior": 3,
+  "loss_history_summary": "2 claims in 3 years: 1 property damage (£12,000 paid), 1 bodily injury (£45,000 reserved, open)",
+  "special_conditions": ["Contractors all-risks extension", "JCT contract compliance"],
+  "modality": "text"
+}

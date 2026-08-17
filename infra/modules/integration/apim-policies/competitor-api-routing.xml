@@ -1,0 +1,47 @@
+<!--
+  Competitor API Routing policy — load balancing across multiple carrier rating endpoints
+  Routes quote requests to available competitor APIs with failover
+  Cost management: every routed call is an APIM transaction
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Route to competitor backends based on carrier parameter -->
+        <choose>
+            <when condition="@(context.Request.Headers.GetValueOrDefault("x-carrier","") == "carrier-a")">
+                <set-backend-service base-url="{{carrier-a-endpoint}}" />
+            </when>
+            <when condition="@(context.Request.Headers.GetValueOrDefault("x-carrier","") == "carrier-b")">
+                <set-backend-service base-url="{{carrier-b-endpoint}}" />
+            </when>
+            <when condition="@(context.Request.Headers.GetValueOrDefault("x-carrier","") == "carrier-c")">
+                <set-backend-service base-url="{{carrier-c-endpoint}}" />
+            </when>
+            <otherwise>
+                <!-- Fan-out to all carriers (used by concurrent price collection) -->
+                <set-backend-service base-url="{{default-competitor-endpoint}}" />
+            </otherwise>
+        </choose>
+        <!-- Add authentication for competitor APIs -->
+        <authentication-managed-identity resource="{{competitor-api-audience}}" />
+    </inbound>
+    <backend>
+        <base />
+        <!-- Retry on transient failures -->
+        <retry condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode >= 500)"
+               count="3" interval="2" delta="1" max-interval="10" first-fast-retry="true">
+            <forward-request buffer-request-body="true" />
+        </retry>
+    </backend>
+    <outbound>
+        <base />
+        <!-- Normalize response format regardless of carrier -->
+        <set-header name="x-source-carrier" exists-action="override">
+            <value>@(context.Request.Headers.GetValueOrDefault("x-carrier", "unknown"))</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+        <set-body>{"error": "Competitor API unavailable", "carrier": "@(context.Request.Headers.GetValueOrDefault("x-carrier","unknown"))"}</set-body>
+    </on-error>
+</policies>

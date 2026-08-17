@@ -1,0 +1,31 @@
+<!--
+  Semantic Caching policy for competitor quote lookups
+  Caches identical quote requests to reduce API calls and latency
+  Cost management: reduces external API costs while maintaining APIM billing
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Cache competitor quote responses for identical risk profiles -->
+        <cache-lookup vary-by-developer="false"
+                     vary-by-developer-groups="false"
+                     caching-type="internal"
+                     downstream-caching-type="none">
+            <vary-by-header>x-risk-hash</vary-by-header>
+            <vary-by-query-parameter>productType</vary-by-query-parameter>
+            <vary-by-query-parameter>turnover</vary-by-query-parameter>
+            <vary-by-query-parameter>region</vary-by-query-parameter>
+        </cache-lookup>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <!-- Cache for 1 hour — competitor rates don't change more frequently -->
+        <cache-store duration="3600" />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

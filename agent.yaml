@@ -1,0 +1,118 @@
+# Foundry Hosted Agent manifest
+# Deploys the Quote Intelligence Orchestrator as a managed Foundry agent
+
+name: insurance-quote-intelligence-orchestrator
+version: 1.0.0
+description: Multi-agent competitive quote intelligence system for insurance contact centers
+
+runtime:
+  type: hosted
+  framework: agent-framework
+  language: python
+  version: "3.12"
+
+identity:
+  type: managed
+  # Each agent gets its own Entra identity via the governance Bicep module
+
+agents:
+  - name: quote-intelligence-orchestrator
+    entry_point: src.agents.orchestrator:QuoteIntelligenceOrchestrator
+    model: gpt-4o
+    description: Central coordinator for quote intelligence pipeline
+
+  - name: submission-intake-agent
+    entry_point: src.agents.intake.submission_intake:SubmissionIntakeAgent
+    model: gpt-4o-mini
+
+  - name: voice-intake-agent
+    entry_point: src.agents.intake.voice_intake:VoiceIntakeAgent
+    model: gpt-4o-mini
+
+  - name: competitor-price-collection-agent
+    entry_point: src.agents.market_intelligence.price_collection:CompetitorPriceCollectionAgent
+    model: gpt-4o-mini
+
+  - name: quote-normalization-agent
+    entry_point: src.agents.market_intelligence.normalization:QuoteNormalizationAgent
+    model: gpt-4o-mini
+
+  - name: coverage-comparison-agent
+    entry_point: src.agents.analysis.coverage_comparison:CoverageComparisonAgent
+    model: gpt-4o
+
+  - name: pricing-variance-agent
+    entry_point: src.agents.analysis.pricing_variance:PricingVarianceAgent
+    model: gpt-4o
+
+  - name: risk-assessment-agent
+    entry_point: src.agents.analysis.risk_assessment:RiskAssessmentAgent
+    model: gpt-4o
+
+  - name: recommendation-agent
+    entry_point: src.agents.decision.recommendation:RecommendationAgent
+    model: gpt-4o
+
+  - name: compliance-guardrail-agent
+    entry_point: src.agents.decision.compliance_guardrail:ComplianceGuardrailAgent
+    model: gpt-4o
+    approval_mode: always_require
+
+  - name: advisor-explanation-agent
+    entry_point: src.agents.communication.advisor_explanation:AdvisorExplanationAgent
+    model: gpt-4o-mini
+
+  - name: voice-response-agent
+    entry_point: src.agents.communication.voice_response:VoiceResponseAgent
+    model: gpt-4o-mini
+
+  - name: call-analytics-agent
+    entry_point: src.agents.coaching.call_analytics:CallAnalyticsAgent
+    model: gpt-4o-mini
+
+  - name: advisor-coaching-agent
+    entry_point: src.agents.coaching.advisor_coaching:AdvisorCoachingAgent
+    model: gpt-4o
+
+workflows:
+  - name: quote-intelligence-pipeline
+    entry_point: src.workflows.quote_intelligence:build_quote_intelligence_workflow
+    trigger: user_message
+
+  - name: voice-quote-intelligence-pipeline
+    entry_point: src.workflows.voice_quote_intelligence:build_voice_quote_intelligence_workflow
+    trigger: voice_call
+
+  - name: coaching-report-pipeline
+    entry_point: src.workflows.coaching_report:build_coaching_report_workflow
+    trigger: user_message
+
+tools:
+  - name: realtime_transcription
+    module: src.tools.speech.realtime_transcription
+  - name: text_to_speech
+    module: src.tools.speech.text_to_speech
+  - name: translation
+    module: src.tools.speech.translation
+  - name: call_summarization
+    module: src.tools.speech.call_summarization
+  - name: diarization
+    module: src.tools.speech.diarization
+  - name: quote_parser
+    module: src.tools.documents.quote_parser
+  - name: content_understanding
+    module: src.tools.documents.content_understanding
+  - name: operational_datastore
+    module: src.tools.data.operational_datastore
+  - name: ai_search
+    module: src.tools.data.operational_datastore
+  - name: fabric_analytics
+    module: src.tools.data.operational_datastore
+  - name: competitor_api
+    module: src.tools.market.competitor_api
+  - name: market_data
+    module: src.tools.market.competitor_api
+  - name: call_recording
+    module: src.tools.contact_center.call_recording
+  - name: disposition_codes
+    module: src.tools.contact_center.call_recording

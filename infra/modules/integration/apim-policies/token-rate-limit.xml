@@ -1,0 +1,38 @@
+<!--
+  Token Rate Limiting policy for Azure OpenAI calls via APIM AI Gateway
+  Prevents token budget overruns across all agent calls
+  Cost management: ensures predictable Azure OpenAI consumption
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Rate limit by tokens per minute (TPM) across all agents -->
+        <azure-openai-token-limit
+            tokens-per-minute="80000"
+            counter-key="@(context.Subscription.Id)"
+            estimate-prompt-tokens="true"
+            remaining-tokens-header-name="x-ratelimit-remaining-tokens"
+            remaining-tokens-variable-name="remainingTokens" />
+        <!-- Semantic caching to reduce redundant LLM calls for identical quotes -->
+        <azure-openai-semantic-cache-lookup
+            score-threshold="0.95"
+            embeddings-backend-id="embeddings-backend"
+            embeddings-backend-auth="system-assigned" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <azure-openai-semantic-cache-store duration="3600" />
+        <!-- Emit token usage metrics for FinOps tracking -->
+        <azure-openai-emit-token-metric
+            namespace="InsuranceQuoteIntelligence">
+            <dimension name="Agent" value="@(context.Request.Headers.GetValueOrDefault("x-agent-name", "unknown"))" />
+            <dimension name="Operation" value="@(context.Operation.Id)" />
+        </azure-openai-emit-token-metric>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
