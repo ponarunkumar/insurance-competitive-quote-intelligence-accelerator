@@ -8,6 +8,15 @@
     "location": {
       "value": "${AZURE_LOCATION}"
     },
+    "deployCoreAI": {
+      "value": true
+    },
+    "deployDataLayer": {
+      "value": false
+    },
+    "deployIntegration": {
+      "value": false
+    },
     "sqlAdminLogin": {
       "value": "${SQL_ADMIN_LOGIN}"
     },

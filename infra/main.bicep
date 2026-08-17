@@ -45,23 +45,39 @@ param tags object = {
   managedBy: 'bicep-azd'
 }
 
-// Data parameters
-@description('SQL admin username')
-@secure()
-param sqlAdminLogin string
+// ============================================================================
+// DEPLOYMENT STAGES (Modular — deploy incrementally)
+// ============================================================================
+// Stage 1: Core AI (default: true) — AI Foundry, OpenAI, Speech, Search, Monitor
+// Stage 2: Data Layer (default: false) — Azure SQL, Cosmos DB, Fabric
+// Stage 3: Integration (default: false) — APIM, Communication Services, Governance
+// ============================================================================
 
-@description('SQL admin password')
-@secure()
-param sqlAdminPassword string
+@description('Stage 1: Deploy Core AI services (AI Foundry, OpenAI, Speech, Search, Monitor)')
+param deployCoreAI bool = true
 
-// APIM parameters
-@description('Publisher email for API Management')
-param apimPublisherEmail string
+@description('Stage 2: Deploy Data Layer (Azure SQL, Cosmos DB, Fabric)')
+param deployDataLayer bool = false
+
+@description('Stage 3: Deploy Integration & Governance (APIM, ACS, Purview, Defender)')
+param deployIntegration bool = false
+
+// Data parameters (required only if deployDataLayer = true)
+@description('SQL admin username (required if deployDataLayer is true)')
+param sqlAdminLogin string = ''
+
+@description('SQL admin password (required if deployDataLayer is true)')
+@secure()
+param sqlAdminPassword string = ''
+
+// Integration parameters (required only if deployIntegration = true)
+@description('Publisher email for API Management (required if deployIntegration is true)')
+param apimPublisherEmail string = ''
 
 @description('Publisher name for API Management')
 param apimPublisherName string = 'Insurance Quote Intelligence'
 
-// Fabric parameters
+// Fabric parameters (optional)
 @description('Fabric admin member object IDs')
 param fabricAdminMembers array = []
 
@@ -79,10 +95,14 @@ module resourceGroup 'modules/core/resource-group.bicep' = {
 }
 
 // ============================================================================
-// CORE INFRASTRUCTURE
+// STAGE 1: CORE AI (deployCoreAI = true by default)
+// Includes: Resource Group, Key Vault, Monitor, AI Foundry, OpenAI, Speech,
+//           AI Search, Document Intelligence, Content Understanding, AI Language
 // ============================================================================
 
-module keyVault 'modules/core/key-vault.bicep' = {
+// --- Core Infrastructure (always deployed with Stage 1) ---
+
+module keyVault 'modules/core/key-vault.bicep' = if (deployCoreAI) {
   name: 'kv-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -93,7 +113,7 @@ module keyVault 'modules/core/key-vault.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module logAnalytics 'modules/core/log-analytics.bicep' = {
+module logAnalytics 'modules/core/log-analytics.bicep' = if (deployCoreAI) {
   name: 'law-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -104,61 +124,59 @@ module logAnalytics 'modules/core/log-analytics.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module appInsights 'modules/core/app-insights.bicep' = {
+module appInsights 'modules/core/app-insights.bicep' = if (deployCoreAI) {
   name: 'ai-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
     name: 'ai-${resourceBaseName}'
     location: location
     tags: tags
-    logAnalyticsWorkspaceId: logAnalytics.outputs.id
+    logAnalyticsWorkspaceId: deployCoreAI ? logAnalytics.outputs.id : ''
   }
   dependsOn: [resourceGroup]
 }
 
-// ============================================================================
-// AI FOUNDRY (Agent Runtime & Hosting)
-// ============================================================================
+// --- AI Foundry (Agent Runtime & Hosting) ---
 
-module storageAccount 'modules/ai-foundry/hosted-agent.bicep' = {
-  name: 'agent-deployment'
-  scope: az.resourceGroup('rg-${resourceBaseName}')
-  params: {
-    name: '${resourceBaseName}-agent'
-    location: location
-    tags: tags
-    projectId: aiProject.outputs.id
-    containerRegistryId: ''
-  }
-  dependsOn: [resourceGroup]
-}
-
-module aiHub 'modules/ai-foundry/ai-foundry-hub.bicep' = {
+module aiHub 'modules/ai-foundry/ai-foundry-hub.bicep' = if (deployCoreAI) {
   name: 'aihub-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
     name: 'aih-${resourceBaseName}'
     location: location
     tags: tags
-    keyVaultId: keyVault.outputs.id
-    appInsightsId: appInsights.outputs.id
-    storageAccountId: '' // TODO: Wire storage account for agent state
+    keyVaultId: deployCoreAI ? keyVault.outputs.id : ''
+    appInsightsId: deployCoreAI ? appInsights.outputs.id : ''
+    storageAccountId: ''
   }
   dependsOn: [resourceGroup]
 }
 
-module aiProject 'modules/ai-foundry/ai-foundry-project.bicep' = {
+module aiProject 'modules/ai-foundry/ai-foundry-project.bicep' = if (deployCoreAI) {
   name: 'aiproject-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
     name: 'aip-${resourceBaseName}'
     location: location
     tags: tags
-    hubId: aiHub.outputs.id
+    hubId: deployCoreAI ? aiHub.outputs.id : ''
   }
 }
 
-module modelDeployments 'modules/ai-foundry/model-deployments.bicep' = {
+module hostedAgent 'modules/ai-foundry/hosted-agent.bicep' = if (deployCoreAI) {
+  name: 'agent-deployment'
+  scope: az.resourceGroup('rg-${resourceBaseName}')
+  params: {
+    name: '${resourceBaseName}-agent'
+    location: location
+    tags: tags
+    projectId: deployCoreAI ? aiProject.outputs.id : ''
+    containerRegistryId: ''
+  }
+  dependsOn: [resourceGroup]
+}
+
+module modelDeployments 'modules/ai-foundry/model-deployments.bicep' = if (deployCoreAI) {
   name: 'models-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -169,11 +187,9 @@ module modelDeployments 'modules/ai-foundry/model-deployments.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-// ============================================================================
-// AI SERVICES
-// ============================================================================
+// --- AI Services ---
 
-module aiSearch 'modules/ai-services/ai-search.bicep' = {
+module aiSearch 'modules/ai-services/ai-search.bicep' = if (deployCoreAI) {
   name: 'search-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -184,7 +200,7 @@ module aiSearch 'modules/ai-services/ai-search.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module documentIntelligence 'modules/ai-services/document-intelligence.bicep' = {
+module documentIntelligence 'modules/ai-services/document-intelligence.bicep' = if (deployCoreAI) {
   name: 'docint-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -195,7 +211,7 @@ module documentIntelligence 'modules/ai-services/document-intelligence.bicep' = 
   dependsOn: [resourceGroup]
 }
 
-module contentUnderstanding 'modules/ai-services/content-understanding.bicep' = {
+module contentUnderstanding 'modules/ai-services/content-understanding.bicep' = if (deployCoreAI) {
   name: 'cu-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -206,7 +222,7 @@ module contentUnderstanding 'modules/ai-services/content-understanding.bicep' = 
   dependsOn: [resourceGroup]
 }
 
-module aiLanguage 'modules/ai-services/ai-language.bicep' = {
+module aiLanguage 'modules/ai-services/ai-language.bicep' = if (deployCoreAI) {
   name: 'lang-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -217,11 +233,9 @@ module aiLanguage 'modules/ai-services/ai-language.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-// ============================================================================
-// SPEECH SERVICES (Full multimodal voice stack)
-// ============================================================================
+// --- Speech Services ---
 
-module speechService 'modules/speech/speech-service.bicep' = {
+module speechService 'modules/speech/speech-service.bicep' = if (deployCoreAI) {
   name: 'speech-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -232,7 +246,7 @@ module speechService 'modules/speech/speech-service.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module speechSTT 'modules/speech/speech-stt.bicep' = {
+module speechSTT 'modules/speech/speech-stt.bicep' = if (deployCoreAI) {
   name: 'stt-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -243,7 +257,7 @@ module speechSTT 'modules/speech/speech-stt.bicep' = {
   dependsOn: [speechService]
 }
 
-module speechTTS 'modules/speech/speech-tts.bicep' = {
+module speechTTS 'modules/speech/speech-tts.bicep' = if (deployCoreAI) {
   name: 'tts-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -254,7 +268,7 @@ module speechTTS 'modules/speech/speech-tts.bicep' = {
   dependsOn: [speechService]
 }
 
-module speechTranslation 'modules/speech/speech-translation.bicep' = {
+module speechTranslation 'modules/speech/speech-translation.bicep' = if (deployCoreAI) {
   name: 'translation-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -263,7 +277,7 @@ module speechTranslation 'modules/speech/speech-translation.bicep' = {
   dependsOn: [speechService]
 }
 
-module customSpeech 'modules/speech/custom-speech.bicep' = {
+module customSpeech 'modules/speech/custom-speech.bicep' = if (deployCoreAI) {
   name: 'customspeech-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -274,50 +288,25 @@ module customSpeech 'modules/speech/custom-speech.bicep' = {
   dependsOn: [speechService]
 }
 
-module voiceLive 'modules/speech/voice-live.bicep' = {
+module voiceLive 'modules/speech/voice-live.bicep' = if (deployCoreAI) {
   name: 'voicelive-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
     name: 'vl-${resourceBaseName}'
     location: location
     tags: tags
-    speechServiceId: speechService.outputs.id
-    openAIResourceId: modelDeployments.outputs.id
+    speechServiceId: deployCoreAI ? speechService.outputs.id : ''
+    openAIResourceId: deployCoreAI ? modelDeployments.outputs.id : ''
   }
   dependsOn: [speechService, modelDeployments]
 }
 
 // ============================================================================
-// COMMUNICATION SERVICES (Contact Center)
+// STAGE 2: DATA LAYER (deployDataLayer = true to enable)
+// Includes: Azure SQL, Cosmos DB, Microsoft Fabric
 // ============================================================================
 
-module communicationServices 'modules/communication/communication-services.bicep' = {
-  name: 'acs-deployment'
-  scope: az.resourceGroup('rg-${resourceBaseName}')
-  params: {
-    name: 'acs-${resourceBaseName}'
-    tags: tags
-  }
-  dependsOn: [resourceGroup]
-}
-
-module callAutomation 'modules/communication/call-automation.bicep' = {
-  name: 'callaut-deployment'
-  scope: az.resourceGroup('rg-${resourceBaseName}')
-  params: {
-    communicationServiceName: 'acs-${resourceBaseName}'
-    location: location
-    tags: tags
-    speechServiceId: speechService.outputs.id
-  }
-  dependsOn: [communicationServices]
-}
-
-// ============================================================================
-// DATA LAYER
-// ============================================================================
-
-module azureSql 'modules/data/azure-sql.bicep' = {
+module azureSql 'modules/data/azure-sql.bicep' = if (deployDataLayer) {
   name: 'sql-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -330,7 +319,7 @@ module azureSql 'modules/data/azure-sql.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module cosmosDb 'modules/data/cosmos-db.bicep' = {
+module cosmosDb 'modules/data/cosmos-db.bicep' = if (deployDataLayer) {
   name: 'cosmos-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -341,7 +330,7 @@ module cosmosDb 'modules/data/cosmos-db.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module fabric 'modules/data/fabric-lakehouse.bicep' = {
+module fabric 'modules/data/fabric-lakehouse.bicep' = if (deployDataLayer) {
   name: 'fabric-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -354,10 +343,33 @@ module fabric 'modules/data/fabric-lakehouse.bicep' = {
 }
 
 // ============================================================================
-// INTEGRATION (API Management AI Gateway)
+// STAGE 3: INTEGRATION & GOVERNANCE (deployIntegration = true to enable)
+// Includes: APIM, Communication Services, Entra Identities, RBAC, Purview, Defender
 // ============================================================================
 
-module apim 'modules/integration/apim.bicep' = {
+module communicationServices 'modules/communication/communication-services.bicep' = if (deployIntegration) {
+  name: 'acs-deployment'
+  scope: az.resourceGroup('rg-${resourceBaseName}')
+  params: {
+    name: 'acs-${resourceBaseName}'
+    tags: tags
+  }
+  dependsOn: [resourceGroup]
+}
+
+module callAutomation 'modules/communication/call-automation.bicep' = if (deployIntegration) {
+  name: 'callaut-deployment'
+  scope: az.resourceGroup('rg-${resourceBaseName}')
+  params: {
+    communicationServiceName: 'acs-${resourceBaseName}'
+    location: location
+    tags: tags
+    speechServiceId: ''
+  }
+  dependsOn: [communicationServices]
+}
+
+module apim 'modules/integration/apim.bicep' = if (deployIntegration) {
   name: 'apim-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -370,11 +382,7 @@ module apim 'modules/integration/apim.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-// ============================================================================
-// GOVERNANCE
-// ============================================================================
-
-module agentIdentities 'modules/governance/entra-agent-identities.bicep' = {
+module agentIdentities 'modules/governance/entra-agent-identities.bicep' = if (deployIntegration) {
   name: 'identities-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -385,27 +393,27 @@ module agentIdentities 'modules/governance/entra-agent-identities.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module rbacAssignments 'modules/governance/rbac-assignments.bicep' = {
+module rbacAssignments 'modules/governance/rbac-assignments.bicep' = if (deployIntegration && deployCoreAI) {
   name: 'rbac-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
-    orchestratorPrincipalId: agentIdentities.outputs.orchestratorPrincipalId
-    intakePrincipalId: agentIdentities.outputs.intakePrincipalId
-    priceCollectionPrincipalId: agentIdentities.outputs.priceCollectionPrincipalId
-    analysisPrincipalId: agentIdentities.outputs.analysisPrincipalId
-    decisionPrincipalId: agentIdentities.outputs.decisionPrincipalId
-    speechPrincipalId: agentIdentities.outputs.speechPrincipalId
-    compliancePrincipalId: agentIdentities.outputs.compliancePrincipalId
-    openAIResourceId: modelDeployments.outputs.id
-    aiSearchResourceId: aiSearch.outputs.id
-    sqlServerId: azureSql.outputs.serverId
-    keyVaultId: keyVault.outputs.id
-    storageAccountId: '' // TODO: Wire primary storage account
+    orchestratorPrincipalId: deployIntegration ? agentIdentities.outputs.orchestratorPrincipalId : ''
+    intakePrincipalId: deployIntegration ? agentIdentities.outputs.intakePrincipalId : ''
+    priceCollectionPrincipalId: deployIntegration ? agentIdentities.outputs.priceCollectionPrincipalId : ''
+    analysisPrincipalId: deployIntegration ? agentIdentities.outputs.analysisPrincipalId : ''
+    decisionPrincipalId: deployIntegration ? agentIdentities.outputs.decisionPrincipalId : ''
+    speechPrincipalId: deployIntegration ? agentIdentities.outputs.speechPrincipalId : ''
+    compliancePrincipalId: deployIntegration ? agentIdentities.outputs.compliancePrincipalId : ''
+    openAIResourceId: deployCoreAI ? modelDeployments.outputs.id : ''
+    aiSearchResourceId: deployCoreAI ? aiSearch.outputs.id : ''
+    sqlServerId: deployDataLayer ? azureSql.outputs.serverId : ''
+    keyVaultId: deployCoreAI ? keyVault.outputs.id : ''
+    storageAccountId: ''
   }
   dependsOn: [agentIdentities]
 }
 
-module purview 'modules/governance/purview-policies.bicep' = {
+module purview 'modules/governance/purview-policies.bicep' = if (deployIntegration) {
   name: 'purview-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -416,7 +424,7 @@ module purview 'modules/governance/purview-policies.bicep' = {
   dependsOn: [resourceGroup]
 }
 
-module defender 'modules/governance/defender-config.bicep' = {
+module defender 'modules/governance/defender-config.bicep' = if (deployIntegration) {
   name: 'defender-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {}
@@ -427,12 +435,17 @@ module defender 'modules/governance/defender-config.bicep' = {
 // OUTPUTS
 // ============================================================================
 
+// Stage 1 outputs (Core AI)
 output resourceGroupName string = 'rg-${resourceBaseName}'
-output aiFoundryEndpoint string = aiHub.outputs.name
-output openAIEndpoint string = modelDeployments.outputs.endpoint
-output aiSearchEndpoint string = aiSearch.outputs.endpoint
-output speechEndpoint string = speechService.outputs.endpoint
-output sqlServerFqdn string = azureSql.outputs.serverFqdn
-output cosmosEndpoint string = cosmosDb.outputs.endpoint
-output apimGatewayUrl string = apim.outputs.gatewayUrl
-output appInsightsConnectionString string = appInsights.outputs.connectionString
+output aiFoundryEndpoint string = deployCoreAI ? aiHub.outputs.name : 'Not deployed — enable deployCoreAI'
+output openAIEndpoint string = deployCoreAI ? modelDeployments.outputs.endpoint : 'Not deployed'
+output aiSearchEndpoint string = deployCoreAI ? aiSearch.outputs.endpoint : 'Not deployed'
+output speechEndpoint string = deployCoreAI ? speechService.outputs.endpoint : 'Not deployed'
+output appInsightsConnectionString string = deployCoreAI ? appInsights.outputs.connectionString : 'Not deployed'
+
+// Stage 2 outputs (Data Layer)
+output sqlServerFqdn string = deployDataLayer ? azureSql.outputs.serverFqdn : 'Not deployed — enable deployDataLayer'
+output cosmosEndpoint string = deployDataLayer ? cosmosDb.outputs.endpoint : 'Not deployed'
+
+// Stage 3 outputs (Integration)
+output apimGatewayUrl string = deployIntegration ? apim.outputs.gatewayUrl : 'Not deployed — enable deployIntegration'

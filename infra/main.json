@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "930109561688308965"
+      "templateHash": "8054318564494147100"
     }
   },
   "parameters": {
@@ -39,22 +39,46 @@
         "description": "Tags applied to all resources"
       }
     },
-    "sqlAdminLogin": {
-      "type": "securestring",
+    "deployCoreAI": {
+      "type": "bool",
+      "defaultValue": true,
       "metadata": {
-        "description": "SQL admin username"
+        "description": "Stage 1: Deploy Core AI services (AI Foundry, OpenAI, Speech, Search, Monitor)"
+      }
+    },
+    "deployDataLayer": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Stage 2: Deploy Data Layer (Azure SQL, Cosmos DB, Fabric)"
+      }
+    },
+    "deployIntegration": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Stage 3: Deploy Integration & Governance (APIM, ACS, Purview, Defender)"
+      }
+    },
+    "sqlAdminLogin": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SQL admin username (required if deployDataLayer is true)"
       }
     },
     "sqlAdminPassword": {
       "type": "securestring",
+      "defaultValue": "",
       "metadata": {
-        "description": "SQL admin password"
+        "description": "SQL admin password (required if deployDataLayer is true)"
       }
     },
     "apimPublisherEmail": {
       "type": "string",
+      "defaultValue": "",
       "metadata": {
-        "description": "Publisher email for API Management"
+        "description": "Publisher email for API Management (required if deployIntegration is true)"
       }
     },
     "apimPublisherName": {
@@ -152,6 +176,7 @@
       }
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "kv-deployment",
@@ -277,6 +302,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "law-deployment",
@@ -388,6 +414,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "ai-deployment",
@@ -407,9 +434,7 @@
           "tags": {
             "value": "[parameters('tags')]"
           },
-          "logAnalyticsWorkspaceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'law-deployment'), '2025-04-01').outputs.id.value]"
-          }
+          "logAnalyticsWorkspaceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'law-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -493,6 +518,246 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aihub-deployment",
+      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('aih-{0}', parameters('resourceBaseName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "keyVaultId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "appInsightsId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "storageAccountId": {
+            "value": ""
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "15526645544286984686"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the AI Foundry hub"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags"
+              }
+            },
+            "keyVaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault resource ID for secrets"
+              }
+            },
+            "appInsightsId": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights resource ID"
+              }
+            },
+            "storageAccountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Storage account resource ID for agent state"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.MachineLearningServices/workspaces",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "Hub",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "friendlyName": "Insurance Quote Intelligence Hub",
+                "description": "AI Foundry hub for competitive quote intelligence multi-agent system",
+                "keyVault": "[parameters('keyVaultId')]",
+                "applicationInsights": "[parameters('appInsightsId')]",
+                "storageAccount": "[parameters('storageAccountId')]",
+                "publicNetworkAccess": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment')]",
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployCoreAI')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aiproject-deployment",
+      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('aip-{0}', parameters('resourceBaseName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "hubId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "15799479659525204948"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the AI Foundry project"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags"
+              }
+            },
+            "hubId": {
+              "type": "string",
+              "metadata": {
+                "description": "AI Foundry Hub resource ID"
+              }
+            },
+            "enableAgentService": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable Agent Service"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.MachineLearningServices/workspaces",
+              "apiVersion": "2024-10-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "Project",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "friendlyName": "Quote Intelligence Agents",
+                "description": "Multi-agent project for competitive quote intelligence in insurance contact centers",
+                "hubResourceId": "[parameters('hubId')]",
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "condition": "[parameters('enableAgentService')]",
+              "type": "Microsoft.MachineLearningServices/workspaces/agents",
+              "apiVersion": "2024-10-01",
+              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "properties": {
+                "description": "Agent service for insurance quote intelligence orchestration"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "agent-deployment",
@@ -512,9 +777,7 @@
           "tags": {
             "value": "[parameters('tags')]"
           },
-          "projectId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aiproject-deployment'), '2025-04-01').outputs.id.value]"
-          },
+          "projectId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aiproject-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
           "containerRegistryId": {
             "value": ""
           }
@@ -689,249 +952,7 @@
       ]
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "aihub-deployment",
-      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[format('aih-{0}', parameters('resourceBaseName'))]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[parameters('tags')]"
-          },
-          "keyVaultId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value]"
-          },
-          "appInsightsId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.id.value]"
-          },
-          "storageAccountId": {
-            "value": ""
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15526645544286984686"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the AI Foundry hub"
-              }
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "[resourceGroup().location]",
-              "metadata": {
-                "description": "Azure region"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags"
-              }
-            },
-            "keyVaultId": {
-              "type": "string",
-              "metadata": {
-                "description": "Key Vault resource ID for secrets"
-              }
-            },
-            "appInsightsId": {
-              "type": "string",
-              "metadata": {
-                "description": "Application Insights resource ID"
-              }
-            },
-            "storageAccountId": {
-              "type": "string",
-              "metadata": {
-                "description": "Storage account resource ID for agent state"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.MachineLearningServices/workspaces",
-              "apiVersion": "2024-10-01",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "kind": "Hub",
-              "identity": {
-                "type": "SystemAssigned"
-              },
-              "properties": {
-                "friendlyName": "Insurance Quote Intelligence Hub",
-                "description": "AI Foundry hub for competitive quote intelligence multi-agent system",
-                "keyVault": "[parameters('keyVaultId')]",
-                "applicationInsights": "[parameters('appInsightsId')]",
-                "storageAccount": "[parameters('storageAccountId')]",
-                "publicNetworkAccess": "Enabled"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
-            },
-            "name": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "principalId": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment')]",
-        "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "aiproject-deployment",
-      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[format('aip-{0}', parameters('resourceBaseName'))]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[parameters('tags')]"
-          },
-          "hubId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.id.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15799479659525204948"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the AI Foundry project"
-              }
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "[resourceGroup().location]",
-              "metadata": {
-                "description": "Azure region"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags"
-              }
-            },
-            "hubId": {
-              "type": "string",
-              "metadata": {
-                "description": "AI Foundry Hub resource ID"
-              }
-            },
-            "enableAgentService": {
-              "type": "bool",
-              "defaultValue": true,
-              "metadata": {
-                "description": "Enable Agent Service"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.MachineLearningServices/workspaces",
-              "apiVersion": "2024-10-01",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "kind": "Project",
-              "identity": {
-                "type": "SystemAssigned"
-              },
-              "properties": {
-                "friendlyName": "Quote Intelligence Agents",
-                "description": "Multi-agent project for competitive quote intelligence in insurance contact centers",
-                "hubResourceId": "[parameters('hubId')]",
-                "publicNetworkAccess": "Enabled"
-              }
-            },
-            {
-              "condition": "[parameters('enableAgentService')]",
-              "type": "Microsoft.MachineLearningServices/workspaces/agents",
-              "apiVersion": "2024-10-01",
-              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
-              "properties": {
-                "description": "Agent service for insurance quote intelligence orchestration"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
-              ]
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
-            },
-            "name": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "principalId": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment')]"
-      ]
-    },
-    {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "models-deployment",
@@ -1124,6 +1145,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "search-deployment",
@@ -1262,6 +1284,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "docint-deployment",
@@ -1373,6 +1396,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "cu-deployment",
@@ -1480,6 +1504,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "lang-deployment",
@@ -1591,6 +1616,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "speech-deployment",
@@ -1706,6 +1732,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "stt-deployment",
@@ -1864,6 +1891,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "tts-deployment",
@@ -1985,6 +2013,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "translation-deployment",
@@ -2071,6 +2100,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "customspeech-deployment",
@@ -2210,6 +2240,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "voicelive-deployment",
@@ -2229,12 +2260,8 @@
           "tags": {
             "value": "[parameters('tags')]"
           },
-          "speechServiceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment'), '2025-04-01').outputs.id.value]"
-          },
-          "openAIResourceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.id.value]"
-          }
+          "speechServiceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "openAIResourceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -2336,246 +2363,7 @@
       ]
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "acs-deployment",
-      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[format('acs-{0}', parameters('resourceBaseName'))]"
-          },
-          "tags": {
-            "value": "[parameters('tags')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "18051350050057966993"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Communication Services resource"
-              }
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "global",
-              "metadata": {
-                "description": "Azure region (ACS is global, data location determines residency)"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags"
-              }
-            },
-            "dataLocation": {
-              "type": "string",
-              "defaultValue": "Europe",
-              "allowedValues": [
-                "United States",
-                "Europe",
-                "UK",
-                "Australia",
-                "Japan",
-                "France",
-                "Germany"
-              ],
-              "metadata": {
-                "description": "Data location for compliance"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Communication/communicationServices",
-              "apiVersion": "2023-06-01-preview",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "dataLocation": "[parameters('dataLocation')]"
-              }
-            }
-          ],
-          "outputs": {
-            "id": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Communication/communicationServices', parameters('name'))]"
-            },
-            "name": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "hostName": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('name')), '2023-06-01-preview').hostName]"
-            },
-            "dataLocation": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('name')), '2023-06-01-preview').dataLocation]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "callaut-deployment",
-      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "communicationServiceName": {
-            "value": "[format('acs-{0}', parameters('resourceBaseName'))]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[parameters('tags')]"
-          },
-          "speechServiceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment'), '2025-04-01').outputs.id.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "11218921195532865330"
-            }
-          },
-          "parameters": {
-            "communicationServiceName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Communication Services resource (parent)"
-              }
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "[resourceGroup().location]",
-              "metadata": {
-                "description": "Azure region"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags"
-              }
-            },
-            "callbackEndpoint": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Callback endpoint for call events"
-              }
-            },
-            "speechServiceId": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Speech service resource ID for cognitive speech in calls"
-              }
-            },
-            "enableRecording": {
-              "type": "bool",
-              "defaultValue": true,
-              "metadata": {
-                "description": "Enable call recording"
-              }
-            }
-          },
-          "resources": [
-            {
-              "condition": "[parameters('enableRecording')]",
-              "type": "Microsoft.Storage/storageAccounts",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}rec', replace(parameters('communicationServiceName'), '-', ''))]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "sku": {
-                "name": "Standard_LRS"
-              },
-              "kind": "StorageV2",
-              "properties": {
-                "accessTier": "Hot",
-                "allowBlobPublicAccess": false,
-                "minimumTlsVersion": "TLS1_2"
-              }
-            },
-            {
-              "condition": "[parameters('enableRecording')]",
-              "type": "Microsoft.Storage/storageAccounts/blobServices",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}/{1}', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default')]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')))]"
-              ]
-            },
-            {
-              "condition": "[parameters('enableRecording')]",
-              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-              "apiVersion": "2023-05-01",
-              "name": "[format('{0}/{1}/{2}', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default', 'call-recordings')]",
-              "properties": {
-                "publicAccess": "None"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default')]"
-              ]
-            }
-          ],
-          "outputs": {
-            "communicationServiceHostName": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('communicationServiceName')), '2023-06-01-preview').hostName]"
-            },
-            "recordingStorageId": {
-              "type": "string",
-              "value": "[if(parameters('enableRecording'), resourceId('Microsoft.Storage/storageAccounts', format('{0}rec', replace(parameters('communicationServiceName'), '-', ''))), '')]"
-            },
-            "recordingEnabled": {
-              "type": "bool",
-              "value": "[parameters('enableRecording')]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'acs-deployment')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment')]"
-      ]
-    },
-    {
+      "condition": "[parameters('deployDataLayer')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "sql-deployment",
@@ -2755,6 +2543,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployDataLayer')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "cosmos-deployment",
@@ -2927,6 +2716,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployDataLayer')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "fabric-deployment",
@@ -3043,6 +2833,248 @@
       ]
     },
     {
+      "condition": "[parameters('deployIntegration')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "acs-deployment",
+      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('acs-{0}', parameters('resourceBaseName'))]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "18051350050057966993"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Communication Services resource"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Azure region (ACS is global, data location determines residency)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags"
+              }
+            },
+            "dataLocation": {
+              "type": "string",
+              "defaultValue": "Europe",
+              "allowedValues": [
+                "United States",
+                "Europe",
+                "UK",
+                "Australia",
+                "Japan",
+                "France",
+                "Germany"
+              ],
+              "metadata": {
+                "description": "Data location for compliance"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Communication/communicationServices",
+              "apiVersion": "2023-06-01-preview",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "dataLocation": "[parameters('dataLocation')]"
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Communication/communicationServices', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "hostName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('name')), '2023-06-01-preview').hostName]"
+            },
+            "dataLocation": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('name')), '2023-06-01-preview').dataLocation]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployIntegration')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "callaut-deployment",
+      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "communicationServiceName": {
+            "value": "[format('acs-{0}', parameters('resourceBaseName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "speechServiceId": {
+            "value": ""
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "11218921195532865330"
+            }
+          },
+          "parameters": {
+            "communicationServiceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Communication Services resource (parent)"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags"
+              }
+            },
+            "callbackEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Callback endpoint for call events"
+              }
+            },
+            "speechServiceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Speech service resource ID for cognitive speech in calls"
+              }
+            },
+            "enableRecording": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable call recording"
+              }
+            }
+          },
+          "resources": [
+            {
+              "condition": "[parameters('enableRecording')]",
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}rec', replace(parameters('communicationServiceName'), '-', ''))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "accessTier": "Hot",
+                "allowBlobPublicAccess": false,
+                "minimumTlsVersion": "TLS1_2"
+              }
+            },
+            {
+              "condition": "[parameters('enableRecording')]",
+              "type": "Microsoft.Storage/storageAccounts/blobServices",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')))]"
+              ]
+            },
+            {
+              "condition": "[parameters('enableRecording')]",
+              "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}/{2}', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default', 'call-recordings')]",
+              "properties": {
+                "publicAccess": "None"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('{0}rec', replace(parameters('communicationServiceName'), '-', '')), 'default')]"
+              ]
+            }
+          ],
+          "outputs": {
+            "communicationServiceHostName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Communication/communicationServices', parameters('communicationServiceName')), '2023-06-01-preview').hostName]"
+            },
+            "recordingStorageId": {
+              "type": "string",
+              "value": "[if(parameters('enableRecording'), resourceId('Microsoft.Storage/storageAccounts', format('{0}rec', replace(parameters('communicationServiceName'), '-', ''))), '')]"
+            },
+            "recordingEnabled": {
+              "type": "bool",
+              "value": "[parameters('enableRecording')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'acs-deployment')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployIntegration')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "apim-deployment",
@@ -3232,6 +3264,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployIntegration')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "identities-deployment",
@@ -3400,6 +3433,7 @@
       ]
     },
     {
+      "condition": "[and(parameters('deployIntegration'), parameters('deployCoreAI'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "rbac-deployment",
@@ -3410,39 +3444,17 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "orchestratorPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.orchestratorPrincipalId.value]"
-          },
-          "intakePrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.intakePrincipalId.value]"
-          },
-          "priceCollectionPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.priceCollectionPrincipalId.value]"
-          },
-          "analysisPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.analysisPrincipalId.value]"
-          },
-          "decisionPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.decisionPrincipalId.value]"
-          },
-          "speechPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.speechPrincipalId.value]"
-          },
-          "compliancePrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.compliancePrincipalId.value]"
-          },
-          "openAIResourceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.id.value]"
-          },
-          "aiSearchResourceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment'), '2025-04-01').outputs.id.value]"
-          },
-          "sqlServerId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment'), '2025-04-01').outputs.serverId.value]"
-          },
-          "keyVaultId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value]"
-          },
+          "orchestratorPrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.orchestratorPrincipalId.value), createObject('value', ''))]",
+          "intakePrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.intakePrincipalId.value), createObject('value', ''))]",
+          "priceCollectionPrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.priceCollectionPrincipalId.value), createObject('value', ''))]",
+          "analysisPrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.analysisPrincipalId.value), createObject('value', ''))]",
+          "decisionPrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.decisionPrincipalId.value), createObject('value', ''))]",
+          "speechPrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.speechPrincipalId.value), createObject('value', ''))]",
+          "compliancePrincipalId": "[if(parameters('deployIntegration'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment'), '2025-04-01').outputs.compliancePrincipalId.value), createObject('value', ''))]",
+          "openAIResourceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "aiSearchResourceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "sqlServerId": "[if(parameters('deployDataLayer'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment'), '2025-04-01').outputs.serverId.value), createObject('value', ''))]",
+          "keyVaultId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
           "storageAccountId": {
             "value": ""
           }
@@ -3611,6 +3623,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployIntegration')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "purview-deployment",
@@ -3704,6 +3717,7 @@
       ]
     },
     {
+      "condition": "[parameters('deployIntegration')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "defender-deployment",
@@ -3829,35 +3843,35 @@
     },
     "aiFoundryEndpoint": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.name.value]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.name.value, 'Not deployed — enable deployCoreAI')]"
     },
     "openAIEndpoint": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.endpoint.value]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment'), '2025-04-01').outputs.endpoint.value, 'Not deployed')]"
     },
     "aiSearchEndpoint": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment'), '2025-04-01').outputs.endpoint.value]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment'), '2025-04-01').outputs.endpoint.value, 'Not deployed')]"
     },
     "speechEndpoint": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment'), '2025-04-01').outputs.endpoint.value]"
-    },
-    "sqlServerFqdn": {
-      "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment'), '2025-04-01').outputs.serverFqdn.value]"
-    },
-    "cosmosEndpoint": {
-      "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.endpoint.value]"
-    },
-    "apimGatewayUrl": {
-      "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'apim-deployment'), '2025-04-01').outputs.gatewayUrl.value]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'speech-deployment'), '2025-04-01').outputs.endpoint.value, 'Not deployed')]"
     },
     "appInsightsConnectionString": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.connectionString.value]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.connectionString.value, 'Not deployed')]"
+    },
+    "sqlServerFqdn": {
+      "type": "string",
+      "value": "[if(parameters('deployDataLayer'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment'), '2025-04-01').outputs.serverFqdn.value, 'Not deployed — enable deployDataLayer')]"
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "value": "[if(parameters('deployDataLayer'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'cosmos-deployment'), '2025-04-01').outputs.endpoint.value, 'Not deployed')]"
+    },
+    "apimGatewayUrl": {
+      "type": "string",
+      "value": "[if(parameters('deployIntegration'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'apim-deployment'), '2025-04-01').outputs.gatewayUrl.value, 'Not deployed — enable deployIntegration')]"
     }
   }
 }

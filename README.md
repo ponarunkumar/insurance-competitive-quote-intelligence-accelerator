@@ -176,37 +176,113 @@ Result delivered (text in Teams, voice via TTS, or both)
 - Python 3.12+
 - Docker (for local testing of the container image)
 
-### Deploy (One Command)
+### Modular Deployment (Recommended for Beginners)
+
+This accelerator uses a **staged deployment model** — deploy incrementally with more control:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  STAGE 1: Core AI (default — no credentials needed)         │
+│  AI Foundry • OpenAI • Speech • AI Search • Monitor         │
+│  Doc Intelligence • Content Understanding • AI Language     │
+├─────────────────────────────────────────────────────────────┤
+│  STAGE 2: Data Layer (enable when ready)                    │
+│  Azure SQL • Cosmos DB • Microsoft Fabric                   │
+├─────────────────────────────────────────────────────────────┤
+│  STAGE 3: Integration & Governance (enable when ready)      │
+│  API Management • Communication Services • Entra RBAC       │
+│  Purview • Defender for Cloud                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Stage | What Deploys | Required Inputs | When to Enable |
+|-------|-------------|-----------------|----------------|
+| **Stage 1: Core AI** | 16 AI services (Foundry, OpenAI, Speech, Search, Monitor) | Only: environment name + region | **Immediately** — first click |
+| **Stage 2: Data** | Azure SQL, Cosmos DB, Fabric | SQL admin login + password | When you're ready to connect real data |
+| **Stage 3: Integration** | APIM, ACS, Entra identities, Purview, Defender | APIM publisher email | When preparing for production |
+
+### Deploy Stage 1 — Core AI (Zero Credentials Needed)
+
+**Option A: Deploy to Azure Button (Portal)**
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fponarunkumar%2Finsurance-competitive-quote-intelligence-accelerator%2Fmain%2Finfra%2Fmain.json)
+
+When the portal form loads, you only need to fill in:
+1. **Subscription** — select from dropdown
+2. **Region** — select `Sweden Central` or `East US 2`
+3. **Environment Name** — type `dev`
+4. **Deploy Core AI** — leave as `true` ✅
+5. **Deploy Data Layer** — leave as `false` (deploy later)
+6. **Deploy Integration** — leave as `false` (deploy later)
+
+> 💡 **That's it!** No passwords, no emails needed for Stage 1. Click "Review + create" → "Create".
+
+**Option B: Azure Developer CLI**
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/insurance-competitive-quote-intelligence-accelerator.git
+git clone https://github.com/ponarunkumar/insurance-competitive-quote-intelligence-accelerator.git
 cd insurance-competitive-quote-intelligence-accelerator
 
-# Copy environment template and configure
-cp .env.sample .env
-# Edit .env with your Azure subscription details, region, and credentials
-
-# Provision all 24 Azure services and deploy the agent
-azd up
+# Deploy Stage 1 only (Core AI)
+az deployment sub create \
+  --location swedencentral \
+  --template-file infra/main.bicep \
+  --parameters environmentName=dev location=swedencentral \
+               deployCoreAI=true deployDataLayer=false deployIntegration=false
 ```
 
-### What `azd up` Provisions
+### Deploy Stage 2 — Data Layer (When Ready)
 
-| Category | Services Deployed |
-|----------|-------------------|
-| **AI Foundry** | Hub, Project, Agent Service, Hosted Agent runtime |
-| **Models** | Azure OpenAI (GPT-4o @ 80K TPM, GPT-4o-mini @ 120K TPM) |
-| **Search & RAG** | Azure AI Search (Standard S1, Semantic Ranking enabled) |
-| **Speech** | Azure AI Speech (STT, TTS, Translation, Diarization, Custom Speech, Voice Live) |
-| **Document** | Azure Document Intelligence (S0), Content Understanding |
-| **Language** | Azure AI Language (Sentiment, PII, Summarization) |
-| **Communication** | Azure Communication Services (Voice, Call Recording) |
-| **Data** | Azure SQL (GP_S_Gen5_2), Cosmos DB (Serverless), Fabric (F2) |
-| **Integration** | API Management (Standard v2 — AI Gateway) |
-| **Observability** | Log Analytics, Application Insights |
-| **Security** | Key Vault, Entra Agent Identities (7 managed identities), RBAC |
-| **Governance** | Microsoft Purview, Defender for Cloud |
+Re-run the deployment with `deployDataLayer=true` and provide SQL credentials:
+
+```bash
+az deployment sub create \
+  --location swedencentral \
+  --template-file infra/main.bicep \
+  --parameters environmentName=dev location=swedencentral \
+               deployCoreAI=true deployDataLayer=true deployIntegration=false \
+               sqlAdminLogin=sqladmin sqlAdminPassword='YourStr0ngP@ss!'
+```
+
+### Deploy Stage 3 — Integration & Governance (Production-Ready)
+
+Re-run with all stages enabled:
+
+```bash
+az deployment sub create \
+  --location swedencentral \
+  --template-file infra/main.bicep \
+  --parameters environmentName=dev location=swedencentral \
+               deployCoreAI=true deployDataLayer=true deployIntegration=true \
+               sqlAdminLogin=sqladmin sqlAdminPassword='YourStr0ngP@ss!' \
+               apimPublisherEmail=admin@yourcompany.com
+```
+
+### Full Deployment (All Stages at Once)
+
+For experienced users who want everything in one go:
+
+```bash
+azd up  # Prompts for all parameters interactively
+```
+
+### What Each Stage Provisions
+
+| Category | Stage | Services Deployed |
+|----------|-------|-------------------|
+| **AI Foundry** | 1 | Hub, Project, Agent Service, Hosted Agent runtime |
+| **Models** | 1 | Azure OpenAI (GPT-4o @ 80K TPM, GPT-4o-mini @ 120K TPM) |
+| **Search & RAG** | 1 | Azure AI Search (Standard S1, Semantic Ranking enabled) |
+| **Speech** | 1 | Azure AI Speech (STT, TTS, Translation, Diarization, Custom Speech, Voice Live) |
+| **Document** | 1 | Azure Document Intelligence (S0), Content Understanding |
+| **Language** | 1 | Azure AI Language (Sentiment, PII, Summarization) |
+| **Observability** | 1 | Log Analytics, Application Insights, Key Vault |
+| **Data** | 2 | Azure SQL (GP_S_Gen5_2), Cosmos DB (Serverless), Fabric (F2) |
+| **Integration** | 3 | API Management (Standard v2 — AI Gateway) |
+| **Communication** | 3 | Azure Communication Services (Voice, Call Recording) |
+| **Security** | 3 | Entra Agent Identities (7 managed identities), RBAC |
+| **Governance** | 3 | Microsoft Purview, Defender for Cloud |
 
 ### Verify Deployment
 
