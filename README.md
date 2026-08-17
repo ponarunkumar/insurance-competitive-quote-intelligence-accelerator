@@ -31,16 +31,16 @@ This accelerator deploys a **governed, multi-agent AI system** that reduces comp
 | **Developers & Platform Engineers** | A complete, deployable template: infrastructure-as-code, agent stubs with API contracts, sample data, and `azd up` for one-command provisioning |
 | **AI Engineers & Solution Architects** | Multi-agent orchestration patterns (Sequential, Concurrent, Handoff, Magentic), agent design principles, tool/grounding architecture, and HITL governance patterns |
 
-### Solution Play Alignment
+### Strategic Value Pillars
 
-This accelerator aligns with the **FY27 Innovate with AI & Apps** solution play:
+This accelerator delivers value across five key dimensions:
 
 | Pillar | How This Accelerator Delivers |
 |--------|-------------------------------|
-| **Amplify Your Intelligence** | Multi-agent AI transforms advisor decision-making from manual research to AI-augmented insight |
+| **Augmented Decision-Making** | Multi-agent AI transforms advisor decision-making from manual research to AI-augmented insight |
 | **Azure AI Services** | 24 Azure services provisioned — every agent interaction leverages AI compute and storage |
 | **Microsoft Cloud Platform** | Copilot Studio + M365 E5 + Entra P2 + Fabric — full Microsoft platform |
-| **AI & Apps Modernization** | Legacy spreadsheet/portal workflows replaced with governed, observable AI agents |
+| **Application Modernization** | Legacy spreadsheet/portal workflows replaced with governed, observable AI agents |
 | **Responsible AI** | Human-in-the-loop, Purview governance, antitrust guardrails, full audit trail |
 
 ---

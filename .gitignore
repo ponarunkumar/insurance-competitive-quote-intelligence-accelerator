@@ -1,41 +1,101 @@
-# Byte-compiled / optimized
+# ============================================================================
+# Insurance Competitive Quote Intelligence Accelerator — .gitignore
+# ============================================================================
+
+# ---- Python ----
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 .venv/
 venv/
 env/
+ENV/
 
-# Environment files (NEVER commit secrets)
+# ---- Environment & Secrets (NEVER commit) ----
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.sample
+*.pem
+*.key
+*.pfx
 
-# Azure Developer CLI
+# ---- Azure ----
 .azure/
+*.azd.env
 
-# IDE
+# ---- Terraform (if used alongside Bicep) ----
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# ---- IDE & Editors ----
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*~
+*.sublime-workspace
+*.sublime-project
 
-# OS
+# ---- OS ----
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Test / Coverage
+# ---- Test & Coverage ----
 htmlcov/
 .coverage
+.coverage.*
 .pytest_cache/
 *.cover
+.nox/
+.tox/
+nosetests.xml
+coverage.xml
+junit.xml
 
-# Build
-dist/
-build/
-*.egg-info/
+# ---- Docker ----
+docker-compose.override.yml
 
-# Logs
+# ---- Logs ----
 *.log
+logs/
+
+# ---- Node (if front-end added later) ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Jupyter Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Data (large files — use sample data only in repo) ----
+data/raw/
+data/exports/
+*.csv
+*.parquet
+!data/sample_*
+!data/seed_sql.sql
+
