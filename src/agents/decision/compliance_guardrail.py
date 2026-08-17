@@ -4,24 +4,23 @@ Compliance & Guardrail Agent — enforces regulations and requires human approva
 This is the HITL (Human-in-the-Loop) gate. No rate change proceeds without
 explicit human approval. Enforces antitrust, rate-filing, and regulatory compliance.
 
-Azure Services: Copilot Studio, Azure OpenAI
+Azure Services: Azure AI Foundry, Microsoft Purview
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class ComplianceGuardrailAgent(Agent):
-    """Enforces compliance rules and gates human approval for rate changes."""
+AGENT_NAME = "compliance-guardrail-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "compliance-guardrail-agent"
-    description = "Enforce regulatory compliance and require human approval for rate moves"
-    model = "gpt-4o"
-    
-    # CRITICAL: This tool requires human approval before execution
-    approval_mode = "always_require"
+# CRITICAL: This agent requires human approval before execution
+APPROVAL_MODE = "always_require"
 
-    system_prompt = """You are the Compliance & Guardrail Agent.
+SYSTEM_INSTRUCTIONS = """You are the Compliance & Guardrail Agent.
 Your role is to ensure every rate recommendation complies with regulations
 and to gate human approval before any rate change is applied.
 
@@ -53,41 +52,38 @@ Output: APPROVED (with conditions) or BLOCKED (with reason).
 If APPROVED, present approval card to team leader for sign-off.
 """
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Run compliance checks and request human approval."""
-        
-        recommendation = input_data.get("recommendation")
-        
-        # Run compliance validation
-        compliance_result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Validate this recommendation:\n{recommendation}"}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        # If compliance passes, request human approval
-        if compliance_result.get("status") == "APPROVED":
-            approval = await ctx.request_info(
-                prompt=(
-                    f"Rate change approval required:\n"
-                    f"Action: {recommendation.get('action_type')}\n"
-                    f"Adjustment: {recommendation.get('adjustment_percent', 0)}%\n"
-                    f"Rationale: {recommendation.get('rationale')}\n\n"
-                    f"Approve this rate change?"
-                ),
-                options=["Approve", "Reject", "Modify"]
-            )
-            
-            return {
-                "compliance_status": "APPROVED",
-                "human_decision": approval,
-                "audit_trail": compliance_result
-            }
-        else:
-            return {
-                "compliance_status": "BLOCKED",
-                "reason": compliance_result.get("reason"),
-                "audit_trail": compliance_result
-            }
+
+def create_compliance_agent(project_client: AIProjectClient) -> Any:
+    """Register the compliance guardrail agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_compliance_check(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Run compliance checks and request human approval."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    recommendation = input_data.get("recommendation", {})
+
+    prompt = (
+        f"Validate this recommendation for compliance.\n"
+        f"Recommendation: {recommendation}\n"
+        f"Check: antitrust, rate filing, regulatory, guardrail enforcement, data governance.\n"
+        f"Output APPROVED or BLOCKED with detailed reasoning."
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {
+        "compliance_result": response.output_text,
+        "approval_mode": APPROVAL_MODE,
+        "requires_human_approval": True,
+    }

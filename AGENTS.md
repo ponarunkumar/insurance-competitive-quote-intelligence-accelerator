@@ -25,33 +25,48 @@ When asked to add a new agent:
    
    <One-line description of what this agent does.>
    
-   Azure Services: <List Azure services this agent uses>
+   Azure Services: Azure AI Foundry, <other Azure services>
    """
    
+   import os
    from typing import Any
-   from agent_framework import Agent, AgentContext
+   
+   from azure.ai.projects import AIProjectClient
+   from azure.ai.projects.models import PromptAgentDefinition
    
    
-   class <AgentClassName>(Agent):
-       """<Docstring explaining the agent's role in the pipeline>"""
+   AGENT_NAME = "<kebab-case-name>"
+   MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")  # or gpt-4o-mini for simpler tasks
    
-       name = "<kebab-case-name>"
-       description = "<One sentence>"
-       model = "gpt-4o-mini"  # Use gpt-4o for complex reasoning, gpt-4o-mini for simpler tasks
+   SYSTEM_INSTRUCTIONS = """<System prompt instructions>"""
    
-       system_prompt = """<System prompt instructions>"""
    
-       async def run(self, context: AgentContext) -> Any:
-           """Execute the agent's primary task."""
-           # Implementation here
-           pass
+   def create_<agent_name>_agent(project_client: AIProjectClient) -> Any:
+       """Register the agent in the Foundry project."""
+       return project_client.agents.create_version(
+           agent_name=AGENT_NAME,
+           definition=PromptAgentDefinition(
+               model=MODEL,
+               instructions=SYSTEM_INSTRUCTIONS,
+           ),
+       )
+   
+   
+   async def run_<agent_name>(
+       project_client: AIProjectClient,
+       input_data: dict[str, Any],
+   ) -> dict[str, Any]:
+       """Execute the agent's primary task."""
+       openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+       response = openai.responses.create(input="<prompt>")
+       return {"result": response.output_text}
    ```
 
 3. **Add Pydantic schemas** if the agent has new input/output types → `src/models/schemas.py`
 4. **Register in agent.yaml**:
    ```yaml
    - name: <kebab-case-name>
-     entry_point: src.agents.<category>.<module>:<ClassName>
+     entry_point: src.agents.<category>.<module>
      model: gpt-4o-mini
    ```
 5. **Add to workflow** in `src/workflows/` if it's part of the main pipeline

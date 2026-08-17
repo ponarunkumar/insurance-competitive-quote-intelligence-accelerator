@@ -4,21 +4,20 @@ Recommendation Agent — proposes rate action within guardrails.
 Synthesizes pricing variance + risk assessment into an actionable recommendation.
 All rate moves are capped within configured percentage bands.
 
-Azure Services: Azure OpenAI
+Azure Services: Azure AI Foundry
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class RecommendationAgent(Agent):
-    """Proposes rate action based on market analysis and risk assessment."""
+AGENT_NAME = "recommendation-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "recommendation-agent"
-    description = "Propose competitive rate action within configured guardrail bands"
-    model = "gpt-4o"
-
-    system_prompt = """You are the Recommendation Agent.
+SYSTEM_INSTRUCTIONS = """You are the Recommendation Agent.
 Your role is to propose a rate action based on market intelligence and risk assessment.
 
 Your recommendation must:
@@ -46,25 +45,37 @@ For each recommendation, provide:
 CRITICAL: The guardrail band is a HARD LIMIT. Never propose adjustments exceeding it.
 """
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Generate rate recommendation."""
-        
-        pricing_variance = input_data.get("pricing_variance")
-        risk_assessment = input_data.get("risk_assessment")
-        guardrail_band = input_data.get("guardrail_band_percent", 10)  # Default ±10%
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": (
-                    f"Generate recommendation.\n"
-                    f"Pricing variance: {pricing_variance}\n"
-                    f"Risk assessment: {risk_assessment}\n"
-                    f"Guardrail band: ±{guardrail_band}%\n"
-                    f"HARD LIMIT: Do not exceed {guardrail_band}% adjustment."
-                )}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        return {"recommendation": result}
+
+def create_recommendation_agent(project_client: AIProjectClient) -> Any:
+    """Register the recommendation agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_recommendation(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Generate rate recommendation."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    pricing_variance = input_data.get("pricing_variance", {})
+    risk_assessment = input_data.get("risk_assessment", {})
+    guardrail_band = input_data.get("guardrail_band_percent", 10)
+
+    prompt = (
+        f"Generate recommendation.\n"
+        f"Pricing variance: {pricing_variance}\n"
+        f"Risk assessment: {risk_assessment}\n"
+        f"Guardrail band: ±{guardrail_band}%\n"
+        f"HARD LIMIT: Do not exceed {guardrail_band}% adjustment."
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {"recommendation": response.output_text}

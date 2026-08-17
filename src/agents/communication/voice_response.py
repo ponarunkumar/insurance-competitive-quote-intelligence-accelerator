@@ -4,21 +4,20 @@ Voice Response Agent — converts text output to speech for advisor/customer.
 Uses Azure AI Speech TTS to deliver recommendations and explanations
 via voice when the interaction was voice-initiated.
 
-Azure Services: Azure AI Speech Text-to-Speech
+Azure Services: Azure AI Foundry, Azure AI Speech Text-to-Speech
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class VoiceResponseAgent(Agent):
-    """Converts agent output to speech via Azure AI Speech TTS."""
+AGENT_NAME = "voice-response-agent"
+MODEL = os.environ.get("FOUNDRY_SECONDARY_MODEL", "gpt-4o-mini")
 
-    name = "voice-response-agent"
-    description = "Deliver analysis results via Text-to-Speech for voice interactions"
-    model = "gpt-4o-mini"
-
-    system_prompt = """You are the Voice Response Agent.
+SYSTEM_INSTRUCTIONS = """You are the Voice Response Agent.
 Your role is to prepare text for spoken delivery and invoke TTS.
 
 Adapt text for voice:
@@ -34,30 +33,32 @@ Do NOT read out:
 - Internal scores or codes
 """
 
-    tools = ["text_to_speech"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Convert explanation to speech."""
-        
-        advisor_explanation = input_data.get("advisor_explanation", "")
-        
-        # Adapt for speech
-        speech_text = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Prepare for spoken delivery:\n{advisor_explanation}"}
-            ]
-        )
-        
-        # Generate audio via TTS
-        audio_result = await ctx.call_tool("text_to_speech", {
-            "text": speech_text,
-            "voice": input_data.get("voice", "en-GB-SoniaNeural"),
-            "output_format": "audio-24khz-96kbitrate-mono-mp3"
-        })
-        
-        return {
-            "speech_text": speech_text,
-            "audio_url": audio_result.get("audio_url"),
-            "duration_seconds": audio_result.get("duration_seconds")
-        }
+def create_voice_response_agent(project_client: AIProjectClient) -> Any:
+    """Register the voice response agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_voice_response(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Convert explanation to speech-ready format."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    advisor_explanation = input_data.get("advisor_explanation", "")
+
+    prompt = f"Prepare this for spoken delivery (max 100 words):\n{advisor_explanation}"
+
+    response = openai.responses.create(input=prompt)
+
+    return {
+        "speech_text": response.output_text,
+        "voice": input_data.get("voice", "en-GB-SoniaNeural"),
+    }

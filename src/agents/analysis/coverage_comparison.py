@@ -4,21 +4,20 @@ Coverage Comparison Agent — builds side-by-side analysis matrix.
 Compares carrier quote against all competitor quotes across multiple dimensions.
 Identifies coverage gaps, surplus provisions, and true price differences.
 
-Azure Services: Azure OpenAI, Azure AI Search
+Azure Services: Azure AI Foundry, Azure AI Search
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class CoverageComparisonAgent(Agent):
-    """Builds comprehensive coverage comparison matrix."""
+AGENT_NAME = "coverage-comparison-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "coverage-comparison-agent"
-    description = "Generate side-by-side coverage comparison across carrier and competitors"
-    model = "gpt-4o"  # Primary model for complex multi-dimensional analysis
-
-    system_prompt = """You are the Coverage Comparison Agent.
+SYSTEM_INSTRUCTIONS = """You are the Coverage Comparison Agent.
 Your role is to build a comprehensive side-by-side comparison matrix.
 
 Compare across 10+ dimensions:
@@ -44,32 +43,34 @@ For each dimension, indicate:
 Output a ComparisonMatrix with carrier position clearly marked.
 """
 
-    tools = ["ai_search"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Build comparison matrix."""
-        
-        carrier_quote = input_data.get("carrier_quote")
-        normalized_quotes = input_data.get("normalized_quotes")
-        
-        # RAG: retrieve relevant coverage manual sections
-        coverage_context = await ctx.call_tool("ai_search", {
-            "query": f"coverage comparison {input_data.get('product_type', '')}",
-            "index": "underwriting-manuals",
-            "top": 5
-        })
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": (
-                    f"Build comparison matrix.\n"
-                    f"Carrier quote: {carrier_quote}\n"
-                    f"Competitor quotes: {normalized_quotes}\n"
-                    f"Reference material: {coverage_context}"
-                )}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        return {"comparison_matrix": result}
+def create_coverage_comparison_agent(project_client: AIProjectClient) -> Any:
+    """Register the coverage comparison agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_coverage_comparison(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Build comparison matrix."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    carrier_quote = input_data.get("carrier_quote", {})
+    normalized_quotes = input_data.get("normalized_quotes", [])
+
+    prompt = (
+        f"Build a comprehensive comparison matrix.\n"
+        f"Carrier quote: {carrier_quote}\n"
+        f"Competitor quotes: {normalized_quotes}"
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {"comparison_matrix": response.output_text}

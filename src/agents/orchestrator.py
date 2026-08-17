@@ -2,32 +2,24 @@
 Insurance Competitive Quote Intelligence — Orchestrator Agent
 
 The central coordinator that routes requests to specialist agents using
-Sequential, Concurrent, and Handoff patterns via Microsoft Agent Framework.
+the Microsoft Agent Framework with Foundry Hosted Agents.
 
-Azure Services: Azure OpenAI for agent reasoning across all interactions.
+Azure Services: Azure AI Foundry, Azure OpenAI (via Foundry SDK)
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, WorkflowBuilder, AgentContext
-from agent_framework.patterns import Sequential, Concurrent, Handoff
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
+from azure.identity import DefaultAzureCredential
 
 
-class QuoteIntelligenceOrchestrator(Agent):
-    """
-    Orchestrates the competitive quote intelligence pipeline.
-    
-    Patterns used:
-    - Handoff: Triage incoming requests (text vs voice vs document)
-    - Sequential: Intake → Normalize → Compare → Recommend → Comply → Explain
-    - Concurrent: Fan-out to N competitor price-collection agents
-    - Magentic (capped): Open-ended source discovery with round limits
-    """
+# Agent configuration
+AGENT_NAME = "quote-intelligence-orchestrator"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "quote-intelligence-orchestrator"
-    description = "Orchestrates competitive quote analysis across specialist agents"
-    model = "gpt-4o"  # Primary model for complex reasoning
-
-    system_prompt = """You are the Quote Intelligence Orchestrator for an insurance contact center.
+SYSTEM_INSTRUCTIONS = """You are the Quote Intelligence Orchestrator for an insurance contact center.
 Your role is to coordinate specialist agents to deliver competitive quote analysis.
 
 You manage a pipeline of specialist agents:
@@ -52,54 +44,60 @@ Always ensure:
 - Rate adjustments stay within configured percentage bands
 """
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Execute the quote intelligence pipeline."""
-        
-        # Determine entry modality
-        modality = input_data.get("modality", "text")  # text | voice | document
-        
-        # Build the workflow based on modality
-        workflow = WorkflowBuilder()
-        
-        # Step 1: Intake (modality-dependent)
-        if modality == "voice":
-            workflow.add_step("voice_intake", agent="voice-intake-agent")
-        elif modality == "document":
-            workflow.add_step("doc_intake", agent="submission-intake-agent",
-                           tools=["quote_parser", "certificate_parser"])
-        else:
-            workflow.add_step("text_intake", agent="submission-intake-agent")
-        
-        # Step 2: Concurrent competitor price collection
-        workflow.add_concurrent_step(
-            "price_collection",
-            agent="competitor-price-collection-agent",
-            fan_out_key="competitors",  # Fan out to N carrier sources
-            max_concurrent=10,
-            timeout_seconds=30
+
+def create_orchestrator_agent(project_client: AIProjectClient) -> Any:
+    """Register the orchestrator agent in the Foundry project."""
+    agent = project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+    return agent
+
+
+async def run_orchestrator(project_client: AIProjectClient, input_data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Execute the quote intelligence pipeline.
+
+    Uses Foundry Responses API to orchestrate the conversation with the agent.
+    """
+    modality = input_data.get("modality", "text")
+
+    # Get OpenAI client bound to this agent
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    # Create a conversation for multi-turn orchestration
+    conversation = openai.conversations.create()
+
+    # Build the orchestration prompt based on modality
+    if modality == "voice":
+        prompt = (
+            f"Process this voice-initiated quote request. "
+            f"First transcribe via Voice Intake, then run the full pipeline.\n"
+            f"Input: {input_data}"
         )
-        
-        # Step 3-6: Sequential analysis pipeline
-        workflow.add_step("normalization", agent="quote-normalization-agent")
-        workflow.add_step("coverage_comparison", agent="coverage-comparison-agent")
-        workflow.add_step("pricing_variance", agent="pricing-variance-agent")
-        workflow.add_step("risk_assessment", agent="risk-assessment-agent")
-        
-        # Step 7: Recommendation
-        workflow.add_step("recommendation", agent="recommendation-agent")
-        
-        # Step 8: Compliance gate (HITL)
-        workflow.add_step("compliance", agent="compliance-guardrail-agent",
-                        approval_mode="always_require")
-        
-        # Step 9: Advisor explanation
-        workflow.add_step("explanation", agent="advisor-explanation-agent")
-        
-        # Optional: Voice response if voice-initiated
-        if modality == "voice":
-            workflow.add_step("voice_response", agent="voice-response-agent")
-        
-        # Execute the workflow
-        result = await workflow.execute(ctx, input_data)
-        
-        return result
+    elif modality == "document":
+        prompt = (
+            f"Process this document-based submission. "
+            f"Parse via Document Intelligence, then run the full pipeline.\n"
+            f"Input: {input_data}"
+        )
+    else:
+        prompt = (
+            f"Process this text-based quote request through the full pipeline.\n"
+            f"Input: {input_data}"
+        )
+
+    # Execute via Responses API
+    response = openai.responses.create(
+        conversation=conversation.id,
+        input=prompt,
+    )
+
+    return {
+        "result": response.output_text,
+        "conversation_id": conversation.id,
+        "modality": modality,
+    }

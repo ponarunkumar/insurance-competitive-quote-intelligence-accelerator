@@ -7,10 +7,8 @@ metadata:
 services:
   orchestrator:
     project: ./src
-    host: containerapp
+    host: ai.foundry
     language: python
-    docker:
-      path: ./Dockerfile
 
 infra:
   provider: bicep
@@ -39,10 +37,10 @@ hooks:
       Write-Host "Running post-provision setup..."
       Write-Host "  - Seeding Azure SQL with sample data"
       Write-Host "  - Creating AI Search indexes"
-      Write-Host "  - Registering agent identities"
+      Write-Host "  - Registering agents in Foundry project"
   postdeploy:
     shell: pwsh
     run: |
       Write-Host "Deployment complete!"
-      Write-Host "  Agent endpoint: $(azd env get-value AGENT_ENDPOINT)"
-      Write-Host "  APIM Gateway: $(azd env get-value APIM_GATEWAY_URL)"
+      Write-Host "  Foundry Project: $(azd env get-value FOUNDRY_PROJECT_ENDPOINT)"
+      Write-Host "  Agent Playground: https://ai.azure.com"

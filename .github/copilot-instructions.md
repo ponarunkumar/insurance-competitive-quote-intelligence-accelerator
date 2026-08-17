@@ -4,9 +4,10 @@ This repository is the **Insurance Competitive Quote Intelligence Accelerator** 
 
 ## Repository Context
 
-- **Framework**: Microsoft Agent Framework (Python 3.12)
+- **SDK**: Microsoft Foundry SDK (`azure-ai-projects >= 2.3.0`) + Agent Framework
+- **Hosting**: Foundry Hosted Agents (managed compute, identity, scaling)
 - **Infrastructure**: Azure Bicep (modular, 3-stage deployment)
-- **Agents**: 14 specialist agents orchestrated by a central Orchestrator
+- **Agents**: 14 specialist agents registered as Foundry Prompt Agents
 - **Schemas**: Pydantic models define all inter-agent contracts (`src/models/schemas.py`)
 - **Deployment**: Azure Developer CLI (`azd up`) or Deploy to Azure button
 
@@ -22,14 +23,15 @@ This system uses 5 orchestration patterns:
 
 ## Code Conventions
 
-- All agents inherit from `agent_framework.Agent`
-- Each agent defines: `name`, `model`, `system_prompt`, and `async def run(self, context)`
+- All agents use the Foundry SDK pattern: `project_client.agents.create_version()` + `project_client.get_openai_client(agent_name=...)`
+- Each agent module defines: `AGENT_NAME`, `MODEL`, `SYSTEM_INSTRUCTIONS`, `create_*_agent()`, and `run_*()` functions
 - Inter-agent data contracts use Pydantic models from `src/models/schemas.py`
 - Tools are standalone modules in `src/tools/` registered in `agent.yaml`
 - Infrastructure uses Azure Bicep with conditional deployment flags
 - Python code follows PEP 8 with type hints on all function signatures
-- Use `async/await` for all agent methods and tool calls
+- Use `async/await` for all agent run functions
 - Docstrings use triple-quote format with a one-line summary
+- Authentication: `DefaultAzureCredential` from `azure-identity` (Entra ID, no API keys)
 
 ## File Structure
 
@@ -64,11 +66,13 @@ docs/                 # Architecture, Agents reference, Getting Started
 ## How to Add a New Agent
 
 1. Create a new file in the appropriate `src/agents/<category>/` directory
-2. Define a class inheriting from `Agent` with `name`, `model`, `system_prompt`, and `run()` method
-3. Define input/output schemas in `src/models/schemas.py` if needed
-4. Register the agent in `agent.yaml` under the `agents:` section
-5. Add to the appropriate workflow in `src/workflows/`
-6. Add unit tests in `tests/unit/agents/`
+2. Define module-level constants: `AGENT_NAME`, `MODEL`, `SYSTEM_INSTRUCTIONS`
+3. Create a `create_*_agent(project_client)` function that calls `project_client.agents.create_version()`
+4. Create an `async def run_*(project_client, input_data)` function for the agent's logic
+5. Define input/output schemas in `src/models/schemas.py` if needed
+6. Register the agent in `agent.yaml` under the `agents:` section
+7. Add to the appropriate workflow in `src/workflows/`
+8. Add unit tests in `tests/unit/agents/`
 
 ## How to Add a New Tool
 

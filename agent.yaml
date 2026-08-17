@@ -1,5 +1,6 @@
-# Foundry Hosted Agent manifest
-# Deploys the Quote Intelligence Orchestrator as a managed Foundry agent
+# Microsoft Foundry Hosted Agent manifest
+# Deploys the Quote Intelligence agents via Foundry Agent Service
+# SDK: azure-ai-projects >= 2.3.0 + agent-framework
 
 name: insurance-quote-intelligence-orchestrator
 version: 1.0.0
@@ -10,10 +11,15 @@ runtime:
   framework: agent-framework
   language: python
   version: "3.12"
+  dependency_resolution: remote_build
 
 identity:
   type: managed
-  # Each agent gets its own Entra identity via the governance Bicep module
+  # Each agent gets its own Entra identity via Foundry managed identity
+
+protocol:
+  type: responses
+  version: "2.0.0"
 
 agents:
   - name: quote-intelligence-orchestrator

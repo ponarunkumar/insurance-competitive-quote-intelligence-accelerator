@@ -4,21 +4,20 @@ Call Analytics Agent — sentiment analysis and quality scoring for contact cent
 Processes call transcriptions to extract coaching insights, quality metrics,
 and compliance indicators using Azure AI Language services.
 
-Azure Services: Azure AI Language, Azure AI Speech
+Azure Services: Azure AI Foundry, Azure AI Language, Azure AI Speech
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class CallAnalyticsAgent(Agent):
-    """Analyzes call transcripts for quality, sentiment, and coaching insights."""
+AGENT_NAME = "call-analytics-agent"
+MODEL = os.environ.get("FOUNDRY_SECONDARY_MODEL", "gpt-4o-mini")
 
-    name = "call-analytics-agent"
-    description = "Extract quality metrics, sentiment, and coaching data from call transcripts"
-    model = "gpt-4o-mini"
-
-    system_prompt = """You are the Call Analytics Agent.
+SYSTEM_INSTRUCTIONS = """You are the Call Analytics Agent.
 Your role is to analyze advisor-customer call transcripts and extract actionable insights.
 
 Analyze:
@@ -43,31 +42,33 @@ Analyze:
 Output structured analytics conforming to CallAnalytics schema.
 """
 
-    tools = ["call_summarization", "operational_datastore"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Analyze call transcript."""
-        
-        transcription = input_data.get("transcription")
-        advisor_id = input_data.get("advisor_id")
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Analyze this call:\n{transcription}"}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        # Store analytics in ODS
-        await ctx.call_tool("operational_datastore", {
-            "query": "INSERT INTO call_analytics (advisor_id, call_date, quality_score, sentiment_avg, insights) VALUES (@advisor_id, GETDATE(), @score, @sentiment, @insights)",
-            "params": {
-                "advisor_id": advisor_id,
-                "score": result.get("quality_score"),
-                "sentiment": result.get("avg_sentiment"),
-                "insights": str(result.get("coaching_opportunities"))
-            }
-        })
-        
-        return {"call_analytics": result}
+def create_call_analytics_agent(project_client: AIProjectClient) -> Any:
+    """Register the call analytics agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_call_analytics(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Analyze call transcript."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    transcription = input_data.get("transcription", "")
+    advisor_id = input_data.get("advisor_id", "unknown")
+
+    prompt = f"Analyze this call transcript for quality, sentiment, and coaching insights:\n{transcription}"
+
+    response = openai.responses.create(input=prompt)
+
+    return {
+        "call_analytics": response.output_text,
+        "advisor_id": advisor_id,
+    }

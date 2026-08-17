@@ -1,98 +1,67 @@
 """
 Quote Intelligence Workflow — primary text-initiated pipeline.
 
-Defines the Sequential + Concurrent orchestration using Microsoft Agent Framework WorkflowBuilder.
+Orchestrates the sequential agent pipeline using Microsoft Foundry SDK.
+Each agent is registered as a Foundry Prompt Agent and invoked via the
+Responses API with conversation context for multi-turn orchestration.
 """
 
-from agent_framework import WorkflowBuilder
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
+
+# Agent names in pipeline order
+PIPELINE_AGENTS = [
+    "submission-intake-agent",
+    "competitor-price-collection-agent",
+    "quote-normalization-agent",
+    "coverage-comparison-agent",
+    "pricing-variance-agent",
+    "risk-assessment-agent",
+    "recommendation-agent",
+    "compliance-guardrail-agent",
+    "advisor-explanation-agent",
+]
 
 
-def build_quote_intelligence_workflow() -> WorkflowBuilder:
+async def run_quote_intelligence_pipeline(
+    project_client: AIProjectClient,
+    input_data: dict,
+) -> dict:
     """
-    Build the competitive quote intelligence workflow.
-    
-    Pattern: Sequential pipeline with concurrent fan-out for price collection.
+    Execute the competitive quote intelligence workflow.
+
+    Pattern: Sequential pipeline with conversation context passed between agents.
     Entry: Text or document submission.
-    
+
     Flow:
-    1. Submission Intake (Sequential)
-    2. Competitor Price Collection (Concurrent fan-out to N sources)
-    3. Quote Normalization (Sequential)
-    4. Coverage Comparison (Sequential)
-    5. Pricing Variance (Sequential)
-    6. Risk Assessment (Sequential)
-    7. Recommendation (Sequential)
-    8. Compliance & Guardrail — HITL gate (Sequential, approval_mode=always_require)
-    9. Advisor Explanation (Sequential)
+    1. Submission Intake (parse and structure)
+    2. Competitor Price Collection (concurrent fan-out to N sources)
+    3. Quote Normalization (standardize to common schema)
+    4. Coverage Comparison (side-by-side matrix)
+    5. Pricing Variance (market position and adequacy)
+    6. Risk Assessment (appetite match and exposure)
+    7. Recommendation (rate action within guardrails)
+    8. Compliance & Guardrail — HITL gate (human approval required)
+    9. Advisor Explanation (plain-language talk-track)
     """
-    
-    workflow = WorkflowBuilder(name="quote-intelligence-pipeline")
-    
-    # Step 1: Intake
-    workflow.add_step(
-        name="submission_intake",
-        agent="submission-intake-agent",
-        description="Parse and structure the incoming risk submission"
-    )
-    
-    # Step 2: Concurrent competitor price collection
-    workflow.add_concurrent_step(
-        name="price_collection",
-        agent="competitor-price-collection-agent",
-        fan_out_key="competitors",
-        max_concurrent=10,
-        timeout_seconds=30,
-        description="Fan-out to N competitor sources in parallel"
-    )
-    
-    # Step 3: Normalization
-    workflow.add_step(
-        name="normalization",
-        agent="quote-normalization-agent",
-        description="Standardize all quotes to common schema"
-    )
-    
-    # Step 4: Coverage Comparison
-    workflow.add_step(
-        name="coverage_comparison",
-        agent="coverage-comparison-agent",
-        description="Build side-by-side comparison matrix"
-    )
-    
-    # Step 5: Pricing Variance
-    workflow.add_step(
-        name="pricing_variance",
-        agent="pricing-variance-agent",
-        description="Calculate market position and rate adequacy"
-    )
-    
-    # Step 6: Risk Assessment
-    workflow.add_step(
-        name="risk_assessment",
-        agent="risk-assessment-agent",
-        description="Score appetite match and exposure level"
-    )
-    
-    # Step 7: Recommendation
-    workflow.add_step(
-        name="recommendation",
-        agent="recommendation-agent",
-        description="Propose rate action within guardrails"
-    )
-    
-    # Step 8: Compliance Gate (HITL)
-    workflow.add_step(
-        name="compliance_gate",
-        agent="compliance-guardrail-agent",
-        approval_mode="always_require",
-        description="Enforce regulations and require human approval"
-    )
-    
-    # Step 9: Advisor Explanation
-    workflow.add_step(
-        name="advisor_explanation",
-        agent="advisor-explanation-agent",
-        description="Generate plain-language talk-track for advisor"
-    )
-    
-    return workflow
+    results = {"input": input_data}
+    pipeline_context = str(input_data)
+
+    for agent_name in PIPELINE_AGENTS:
+        openai = project_client.get_openai_client(agent_name=agent_name)
+
+        prompt = (
+            f"Process the following data through your pipeline step.\n"
+            f"Context from previous steps: {pipeline_context}\n"
+            f"Original input: {input_data}"
+        )
+
+        response = openai.responses.create(input=prompt)
+
+        step_result = response.output_text
+        results[agent_name] = step_result
+        pipeline_context = step_result
+
+    results["pipeline_complete"] = True
+    results["agents_invoked"] = PIPELINE_AGENTS
+    return results

@@ -4,21 +4,20 @@ Advisor Explanation Agent — generates plain-language talk-track.
 Produces advisor-ready guidance that explains the competitive analysis
 and recommendation in language suitable for customer conversations.
 
-Azure Services: Azure OpenAI
+Azure Services: Azure AI Foundry
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class AdvisorExplanationAgent(Agent):
-    """Generates plain-language advisor talk-track from analysis results."""
+AGENT_NAME = "advisor-explanation-agent"
+MODEL = os.environ.get("FOUNDRY_SECONDARY_MODEL", "gpt-4o-mini")
 
-    name = "advisor-explanation-agent"
-    description = "Create advisor-ready explanation of quote analysis and recommendation"
-    model = "gpt-4o-mini"  # Cost-optimized for text generation
-
-    system_prompt = """You are the Advisor Explanation Agent.
+SYSTEM_INSTRUCTIONS = """You are the Advisor Explanation Agent.
 Your role is to translate complex competitive analysis into advisor-friendly guidance.
 
 Generate:
@@ -42,22 +41,35 @@ Do NOT include:
 - Any information that could be construed as price-fixing
 """
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Generate advisor talk-track."""
-        
-        comparison_matrix = input_data.get("comparison_matrix")
-        recommendation = input_data.get("recommendation")
-        product_type = input_data.get("product_type")
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": (
-                    f"Generate advisor talk-track for {product_type}.\n"
-                    f"Market comparison: {comparison_matrix}\n"
-                    f"Recommendation: {recommendation}"
-                )}
-            ]
-        )
-        
-        return {"advisor_explanation": result}
+
+def create_explanation_agent(project_client: AIProjectClient) -> Any:
+    """Register the advisor explanation agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_advisor_explanation(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Generate advisor talk-track."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    comparison_matrix = input_data.get("comparison_matrix", {})
+    recommendation = input_data.get("recommendation", {})
+    product_type = input_data.get("product_type", "")
+
+    prompt = (
+        f"Generate advisor talk-track for {product_type}.\n"
+        f"Market comparison: {comparison_matrix}\n"
+        f"Recommendation: {recommendation}"
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {"advisor_explanation": response.output_text}

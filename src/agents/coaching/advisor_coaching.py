@@ -4,21 +4,20 @@ Advisor Coaching Agent — generates performance insights for team leaders.
 Aggregates call analytics, sales metrics, and quality scores to produce
 coaching reports for contact center team leaders.
 
-Azure Services: Azure OpenAI, Azure SQL, Microsoft Fabric
+Azure Services: Azure AI Foundry, Azure SQL, Microsoft Fabric
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class AdvisorCoachingAgent(Agent):
-    """Generates coaching reports and performance insights for team leaders."""
+AGENT_NAME = "advisor-coaching-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "advisor-coaching-agent"
-    description = "Produce advisor performance reports and coaching recommendations"
-    model = "gpt-4o"
-
-    system_prompt = """You are the Advisor Coaching Agent.
+SYSTEM_INSTRUCTIONS = """You are the Advisor Coaching Agent.
 Your role is to generate performance insights and coaching recommendations for team leaders.
 
 When asked for a coaching report, provide:
@@ -50,39 +49,37 @@ When asked for a coaching report, provide:
 Tone: supportive and constructive, focused on development not criticism.
 """
 
-    tools = ["operational_datastore", "fabric_analytics"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Generate coaching report."""
-        
-        advisor_id = input_data.get("advisor_id")
-        period = input_data.get("period", "this_week")
-        
-        # Query performance metrics
-        metrics = await ctx.call_tool("operational_datastore", {
-            "query": (
-                "SELECT advisor_id, COUNT(*) as policies, SUM(premium) as total_premium, "
-                "AVG(quality_score) as avg_quality, AVG(conversion_rate) as avg_conversion "
-                "FROM advisor_performance WHERE advisor_id = @advisor_id AND period = @period "
-                "GROUP BY advisor_id"
-            ),
-            "params": {"advisor_id": advisor_id, "period": period}
-        })
-        
-        # Get historical trend from Fabric
-        trend = await ctx.call_tool("fabric_analytics", {
-            "query": f"SELECT * FROM advisor_trends WHERE advisor_id = '{advisor_id}' ORDER BY week DESC LIMIT 12"
-        })
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": (
-                    f"Generate coaching report for advisor {advisor_id}, period: {period}.\n"
-                    f"Current metrics: {metrics}\n"
-                    f"Trend data: {trend}"
-                )}
-            ]
-        )
-        
-        return {"coaching_report": result}
+def create_coaching_agent(project_client: AIProjectClient) -> Any:
+    """Register the advisor coaching agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_coaching_report(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Generate coaching report."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    advisor_id = input_data.get("advisor_id", "unknown")
+    period = input_data.get("period", "this_week")
+
+    prompt = (
+        f"Generate a coaching report for advisor {advisor_id}, period: {period}.\n"
+        f"Analytics data: {input_data.get('call_analytics', {})}"
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {
+        "coaching_report": response.output_text,
+        "advisor_id": advisor_id,
+        "period": period,
+    }

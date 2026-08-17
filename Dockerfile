@@ -10,4 +10,4 @@ COPY agent.yaml ./
 
 EXPOSE 8080
 
-CMD ["python", "-m", "agent_framework", "serve", "--host", "0.0.0.0", "--port", "8080", "--config", "agent.yaml"]
+CMD ["python", "-m", "src.main"]

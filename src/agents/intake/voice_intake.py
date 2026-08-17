@@ -5,21 +5,20 @@ Transcribes live calls, identifies speakers, and extracts structured risk data
 from natural conversation. Integrates with Azure Communication Services for
 call channel and Azure AI Speech for real-time STT with diarization.
 
-Azure Services: Azure AI Speech, Azure Communication Services
+Azure Services: Azure AI Foundry, Azure AI Speech, Azure Communication Services
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class VoiceIntakeAgent(Agent):
-    """Processes voice input into structured submission data."""
+AGENT_NAME = "voice-intake-agent"
+MODEL = os.environ.get("FOUNDRY_SECONDARY_MODEL", "gpt-4o-mini")
 
-    name = "voice-intake-agent"
-    description = "Transcribe and structure insurance risk data from live voice calls"
-    model = "gpt-4o-mini"
-
-    system_prompt = """You are the Voice Intake Agent for an insurance contact center.
+SYSTEM_INSTRUCTIONS = """You are the Voice Intake Agent for an insurance contact center.
 Your role is to process real-time call transcriptions and extract structured risk data.
 
 You work with:
@@ -39,45 +38,37 @@ Output a structured submission record that feeds into the quote intelligence pip
 Flag any ambiguous or missing information that the advisor should clarify.
 """
 
-    tools = ["realtime_transcription", "diarization", "translation", "call_summarization"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Process voice input and return structured submission."""
-        
-        audio_source = input_data.get("audio_source")  # stream URL or recording URL
-        
-        # Transcribe with diarization
-        transcription = await ctx.call_tool("realtime_transcription", {
-            "audio_source": audio_source,
-            "language": input_data.get("language", "en-GB"),
-            "enable_diarization": True,
-            "custom_model_endpoint": input_data.get("custom_speech_endpoint")
-        })
-        
-        # If non-English, translate
-        if input_data.get("language", "en-GB") != "en-GB":
-            transcription = await ctx.call_tool("translation", {
-                "text": transcription["text"],
-                "source_language": input_data["language"],
-                "target_language": "en-GB"
-            })
-        
-        # Summarize the call for the submission record
-        summary = await ctx.call_tool("call_summarization", {
-            "transcription": transcription,
-            "extract_fields": ["product_type", "risk_details", "coverage_needs", "competitor_mentions"]
-        })
-        
-        # Structure into submission format using LLM
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Structure this call into a submission record:\n{summary}"}
-            ]
-        )
-        
-        return {
-            "submission": result,
-            "transcription": transcription,
-            "call_summary": summary
-        }
+def create_voice_intake_agent(project_client: AIProjectClient) -> Any:
+    """Register the voice intake agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_voice_intake(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Process voice input and return structured submission."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    transcription_text = input_data.get("transcription", "")
+    language = input_data.get("language", "en-GB")
+
+    prompt = (
+        f"Structure this call transcript (language: {language}) into a "
+        f"submission record:\n{transcription_text}"
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {
+        "submission": response.output_text,
+        "transcription": transcription_text,
+        "language": language,
+    }

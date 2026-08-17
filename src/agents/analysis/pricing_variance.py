@@ -4,21 +4,20 @@ Pricing Variance & Rate-Adequacy Agent — market position analysis.
 Calculates carrier's position vs. market median and determines rate adequacy.
 Flags whether current pricing is within the competitive "sweet spot" band.
 
-Azure Services: Azure OpenAI, Azure SQL
+Azure Services: Azure AI Foundry, Azure SQL
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class PricingVarianceAgent(Agent):
-    """Calculates pricing variance and rate adequacy verdict."""
+AGENT_NAME = "pricing-variance-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
 
-    name = "pricing-variance-agent"
-    description = "Compute market position, pricing gap, and rate adequacy assessment"
-    model = "gpt-4o"
-
-    system_prompt = """You are the Pricing Variance & Rate-Adequacy Agent.
+SYSTEM_INSTRUCTIONS = """You are the Pricing Variance & Rate-Adequacy Agent.
 Your role is to assess the carrier's competitive position and rate adequacy.
 
 Calculate:
@@ -42,29 +41,32 @@ Consider:
 Output: variance percentage, adequacy verdict (GREEN/AMBER/RED), and market position rank.
 """
 
-    tools = ["operational_datastore"]
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Calculate pricing variance and adequacy."""
-        
-        comparison_matrix = input_data.get("comparison_matrix")
-        
-        # Query historical rate data from ODS
-        historical = await ctx.call_tool("operational_datastore", {
-            "query": "SELECT avg_premium, loss_ratio, target_rate FROM rate_history WHERE product_type = @product_type",
-            "params": {"product_type": input_data.get("product_type")}
-        })
-        
-        result = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": (
-                    f"Assess pricing variance.\n"
-                    f"Comparison matrix: {comparison_matrix}\n"
-                    f"Historical data: {historical}"
-                )}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        return {"pricing_variance": result}
+def create_pricing_variance_agent(project_client: AIProjectClient) -> Any:
+    """Register the pricing variance agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_pricing_variance(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Calculate pricing variance and adequacy."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    comparison_matrix = input_data.get("comparison_matrix", {})
+
+    prompt = (
+        f"Assess pricing variance and rate adequacy.\n"
+        f"Comparison matrix: {comparison_matrix}"
+    )
+
+    response = openai.responses.create(input=prompt)
+
+    return {"pricing_variance": response.output_text}

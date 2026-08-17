@@ -4,21 +4,20 @@ Quote Normalization Agent — standardizes competitor quotes to a common schema.
 Maps disparate carrier quote formats into a unified comparison structure.
 Handles variations in terminology, coverage definitions, and pricing models.
 
-Azure Services: Azure OpenAI for LLM-based normalization
+Azure Services: Azure AI Foundry, Azure OpenAI (via Foundry SDK)
 """
 
+import os
 from typing import Any
-from agent_framework import Agent, AgentContext
+
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
 
-class QuoteNormalizationAgent(Agent):
-    """Normalizes competitor quotes to a common schema for comparison."""
+AGENT_NAME = "quote-normalization-agent"
+MODEL = os.environ.get("FOUNDRY_SECONDARY_MODEL", "gpt-4o-mini")
 
-    name = "quote-normalization-agent"
-    description = "Standardize diverse carrier quotes into a unified comparison format"
-    model = "gpt-4o-mini"
-
-    system_prompt = """You are the Quote Normalization Agent.
+SYSTEM_INSTRUCTIONS = """You are the Quote Normalization Agent.
 Your role is to map competitor quotes from various formats into a standardized schema.
 
 Normalize each quote to include:
@@ -43,17 +42,29 @@ Handle common variations:
 Output standardized QuoteObject records conforming to the NormalizedQuote schema.
 """
 
-    async def run(self, ctx: AgentContext, input_data: dict[str, Any]) -> dict[str, Any]:
-        """Normalize all competitor quotes to common schema."""
-        
-        raw_quotes = input_data.get("competitor_quotes", [])
-        
-        normalized = await ctx.complete(
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": f"Normalize these quotes:\n{raw_quotes}"}
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        return {"normalized_quotes": normalized}
+
+def create_normalization_agent(project_client: AIProjectClient) -> Any:
+    """Register the normalization agent in the Foundry project."""
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(
+            model=MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+        ),
+    )
+
+
+async def run_normalization(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Normalize all competitor quotes to common schema."""
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+
+    raw_quotes = input_data.get("competitor_quotes", [])
+
+    prompt = f"Normalize these competitor quotes to the NormalizedQuote schema:\n{raw_quotes}"
+
+    response = openai.responses.create(input=prompt)
+
+    return {"normalized_quotes": response.output_text}
