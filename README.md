@@ -3,7 +3,7 @@
 > **Multi-agent AI system for competitive quote intelligence in insurance contact centers**  
 > Built on Microsoft Azure AI Foundry, Microsoft Agent Framework, and the full Azure AI & Apps stack.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fponarunkumar%2Finsurance-competitive-quote-intelligence-accelerator%2Fmain%2Finfra%2Fmain.json)
 
 ---
 
