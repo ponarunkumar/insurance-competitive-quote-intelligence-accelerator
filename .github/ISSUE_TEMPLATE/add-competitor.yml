@@ -1,0 +1,79 @@
+name: Add a Competitor Data Source
+description: Add a new competitor or market data source for price collection
+title: "[Data Source] Add <source-name>"
+labels: ["enhancement", "data-source"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## New Competitor Data Source
+        Add a new market data source for the Price Collection agent to query.
+
+  - type: input
+    id: source-name
+    attributes:
+      label: Source Name
+      description: "Name of the competitor or data provider"
+      placeholder: "Lloyd's Syndicate Feed"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source-type
+    attributes:
+      label: Source Type
+      description: How is this data accessed?
+      options:
+        - REST API
+        - SOAP/XML API
+        - File feed (SFTP/blob)
+        - Web scraping (public data only)
+        - Database connection
+        - Manual upload
+    validations:
+      required: true
+
+  - type: textarea
+    id: data-description
+    attributes:
+      label: Data Description
+      description: What data does this source provide?
+      placeholder: |
+        - Premium indications for commercial property
+        - Coverage terms and conditions
+        - Carrier financial ratings
+
+  - type: textarea
+    id: authentication
+    attributes:
+      label: Authentication Requirements
+      description: How does authentication work? (Do NOT include actual credentials here)
+      placeholder: |
+        - API key (stored in Key Vault)
+        - OAuth 2.0 client credentials
+        - Certificate-based
+
+  - type: textarea
+    id: rate-limits
+    attributes:
+      label: Rate Limits & SLAs
+      description: Any known rate limits or response time expectations?
+      placeholder: |
+        - 100 requests/minute
+        - Average response: 800ms
+        - Available: Mon-Fri 6am-8pm ET
+
+  - type: textarea
+    id: sample-response
+    attributes:
+      label: Sample Response Format
+      description: Example of what the API returns (redact any real data)
+      render: json
+      placeholder: |
+        {
+          "carrier": "Example Carrier",
+          "premium": 12500.00,
+          "limit": 1000000,
+          "deductible": 5000
+        }

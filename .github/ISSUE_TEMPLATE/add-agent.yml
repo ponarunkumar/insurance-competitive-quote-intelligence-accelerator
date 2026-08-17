@@ -1,0 +1,98 @@
+name: Add a New Agent
+description: Request a new specialist agent to be added to the pipeline
+title: "[Agent] Add <agent-name> agent"
+labels: ["enhancement", "agent"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## New Agent Request
+        Use this template to request a new specialist agent. GitHub Copilot Coding Agent can be assigned to implement this.
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent Name
+      description: "Kebab-case name for the agent (e.g., fraud-detection)"
+      placeholder: "my-new-agent"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Agent Category
+      description: Which pipeline stage does this agent belong to?
+      options:
+        - intake
+        - market_intelligence
+        - analysis
+        - decision
+        - communication
+        - coaching
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Recommended Model
+      description: Which OpenAI model should this agent use?
+      options:
+        - gpt-4o (complex reasoning, analysis, decisions)
+        - gpt-4o-mini (simpler tasks, parsing, formatting)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Agent Description
+      description: What does this agent do? What's its role in the pipeline?
+      placeholder: "This agent analyzes historical loss data to predict future claim frequency..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs-outputs
+    attributes:
+      label: Input / Output Schemas
+      description: What data does this agent receive and produce?
+      placeholder: |
+        Input: SubmissionRecord + historical loss data
+        Output: LossPrediction (new Pydantic model with predicted_frequency, severity, etc.)
+
+  - type: textarea
+    id: tools-needed
+    attributes:
+      label: Tools / Azure Services Needed
+      description: What tools or Azure services does this agent need?
+      placeholder: |
+        - Azure AI Search (for historical loss database)
+        - Azure SQL (for actuarial tables)
+
+  - type: dropdown
+    id: orchestration-pattern
+    attributes:
+      label: Orchestration Pattern
+      description: How should this agent be orchestrated?
+      options:
+        - Sequential (part of the main pipeline)
+        - Concurrent (runs in parallel with other agents)
+        - Magentic (iterative research with cap)
+        - HITL (requires human approval)
+        - Async batch (runs post-process)
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this agent is working correctly?
+      placeholder: |
+        - [ ] Agent class created with system prompt
+        - [ ] Registered in agent.yaml
+        - [ ] Added to appropriate workflow
+        - [ ] Unit tests pass
+        - [ ] Contract tests validate schema

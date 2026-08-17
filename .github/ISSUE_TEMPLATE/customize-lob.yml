@@ -1,0 +1,89 @@
+name: Customize for Line of Business
+description: Adapt the accelerator for a specific insurance line of business
+title: "[Customize] Adapt for <line-of-business>"
+labels: ["enhancement", "customization"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Line of Business Customization
+        Adapt the accelerator template for a specific insurance product line.
+        GitHub Copilot Coding Agent can help implement these changes.
+
+  - type: input
+    id: line-of-business
+    attributes:
+      label: Line of Business
+      description: "Which insurance line are you targeting?"
+      placeholder: "Cyber Liability"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: market-segment
+    attributes:
+      label: Market Segment
+      description: Which market segment?
+      options:
+        - Commercial (SME)
+        - Commercial (Mid-Market)
+        - Commercial (Large/Complex)
+        - Personal Lines
+        - Specialty / Surplus
+        - Reinsurance
+        - Life & Health
+    validations:
+      required: true
+
+  - type: textarea
+    id: key-data-fields
+    attributes:
+      label: Key Data Fields
+      description: What risk/submission fields are unique to this line?
+      placeholder: |
+        - Number of endpoints/devices
+        - Security certifications (SOC2, ISO 27001)
+        - Prior cyber incidents
+        - Data types stored (PII, PHI, PCI)
+        - Revenue from online transactions
+
+  - type: textarea
+    id: comparison-dimensions
+    attributes:
+      label: Comparison Dimensions
+      description: What should the coverage comparison focus on for this line?
+      placeholder: |
+        - First-party vs third-party coverage split
+        - Ransomware sublimit
+        - Business interruption waiting period
+        - Incident response services included
+        - Retroactive date
+
+  - type: textarea
+    id: competitors
+    attributes:
+      label: Key Competitors to Track
+      description: Which carriers are the primary competitors in this line?
+      placeholder: |
+        - Coalition
+        - Corvus
+        - At-Bay
+        - Beazley
+        - CNA
+
+  - type: textarea
+    id: regulatory
+    attributes:
+      label: Regulatory Considerations
+      description: Any line-specific regulatory requirements?
+      placeholder: |
+        - State-specific cyber notification requirements
+        - NYDFS cybersecurity regulation
+        - GDPR implications for EU risks
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other information to help with customization?

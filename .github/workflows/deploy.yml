@@ -1,0 +1,95 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'src/**'
+      - 'azure.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      deploy_stage:
+        description: 'Deployment stage'
+        required: true
+        default: 'core-ai'
+        type: choice
+        options:
+          - core-ai
+          - core-ai-and-data
+          - full
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy (${{ github.event.inputs.environment || 'dev' }})
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set deployment stage parameters
+        run: |
+          STAGE="${{ github.event.inputs.deploy_stage || 'core-ai' }}"
+          case $STAGE in
+            core-ai)
+              echo "DEPLOY_CORE_AI=true" >> $GITHUB_ENV
+              echo "DEPLOY_DATA_LAYER=false" >> $GITHUB_ENV
+              echo "DEPLOY_INTEGRATION=false" >> $GITHUB_ENV
+              ;;
+            core-ai-and-data)
+              echo "DEPLOY_CORE_AI=true" >> $GITHUB_ENV
+              echo "DEPLOY_DATA_LAYER=true" >> $GITHUB_ENV
+              echo "DEPLOY_INTEGRATION=false" >> $GITHUB_ENV
+              ;;
+            full)
+              echo "DEPLOY_CORE_AI=true" >> $GITHUB_ENV
+              echo "DEPLOY_DATA_LAYER=true" >> $GITHUB_ENV
+              echo "DEPLOY_INTEGRATION=true" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Deploy with azd
+        run: |
+          azd env new ${{ github.event.inputs.environment || 'dev' }} --no-prompt
+          azd env set DEPLOY_CORE_AI ${{ env.DEPLOY_CORE_AI }}
+          azd env set DEPLOY_DATA_LAYER ${{ env.DEPLOY_DATA_LAYER }}
+          azd env set DEPLOY_INTEGRATION ${{ env.DEPLOY_INTEGRATION }}
+          azd up --no-prompt
+        env:
+          AZURE_ENV_NAME: ${{ github.event.inputs.environment || 'dev' }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'eastus2' }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Post-deployment summary
+        run: |
+          echo "## ✅ Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment || 'dev' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | ${{ github.event.inputs.deploy_stage || 'core-ai' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Region | ${{ vars.AZURE_LOCATION || 'eastus2' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
