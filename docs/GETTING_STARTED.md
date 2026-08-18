@@ -10,9 +10,11 @@
 - [Choose Your Deployment Path](#choose-your-deployment-path)
 - [Option 1: Deploy to Azure (Portal — One Click)](#option-1-deploy-to-azure-portal--one-click)
 - [Option 2: Azure Developer CLI (Command Line)](#option-2-azure-developer-cli-command-line)
+- [Post-Deployment: Register Agents](#post-deployment-register-agents)
 - [Post-Deployment Setup](#post-deployment-setup)
 - [Verify Your Deployment](#verify-your-deployment)
 - [Next Steps by Role](#next-steps-by-role)
+- [Demo Scenarios](#demo-scenarios)
 - [Troubleshooting](#troubleshooting)
 - [Cost Management](#cost-management)
 
@@ -209,6 +211,57 @@ az monitor app-insights query \
 
 ---
 
+## Post-Deployment: Register Agents
+
+After Azure resources are deployed, register all 14 agents in your Foundry project:
+
+### Step 1: Set Your Foundry Endpoint
+
+Find your project endpoint in the Azure portal under your AI Foundry resource, or in the deployment outputs.
+
+```bash
+# Add to your .env file
+FOUNDRY_PROJECT_ENDPOINT=https://<resource-name>.services.ai.azure.com/api/projects/<project-name>
+```
+
+### Step 2: Run the Registration Script
+
+```bash
+# Install dependencies (if not already done)
+pip install "azure-ai-projects>=2.3.0" azure-identity python-dotenv
+
+# Authenticate with Azure
+az login
+
+# Register all 14 agents
+python src/register_agents.py
+```
+
+You should see:
+
+```
+Connecting to Foundry project: https://...
+Registering 14 agents...
+============================================================
+  [ 1/14] ✅ quote-intelligence-orchestrator (model: gpt-4o)
+  [ 2/14] ✅ submission-intake-agent (model: gpt-4o-mini)
+  [ 3/14] ✅ voice-intake-agent (model: gpt-4o-mini)
+  ...
+  [14/14] ✅ advisor-coaching-agent (model: gpt-4o)
+============================================================
+Agent registration complete.
+```
+
+### Step 3: Verify in Foundry Portal
+
+1. Open [ai.azure.com](https://ai.azure.com)
+2. Navigate to your Project → **Build** → **Agents**
+3. Confirm all 14 agents are listed
+4. Click on `quote-intelligence-orchestrator` → **Open in Playground**
+5. Paste the sample submission from `data/sample_request.json` and verify a response
+
+---
+
 ## Post-Deployment Setup
 
 After either deployment option completes, these steps finish the configuration:
@@ -334,6 +387,41 @@ curl -X POST "$(azd env get-value AGENT_ENDPOINT)/api/quote-intelligence" \
 - [ ] Define success metrics (conversion rate, handle time, quality score)
 - [ ] Schedule 90-day proof-of-value review
 - [ ] Prepare coaching report format for team leaders
+
+---
+
+## Demo Scenarios
+
+For detailed, step-by-step demo guides with talk tracks, sample data, and fallback plans, see **[DEMO_SCENARIOS.md](DEMO_SCENARIOS.md)**.
+
+### Available Scenarios
+
+| # | Scenario | Duration | Best For |
+|---|----------|----------|----------|
+| 1 | **Fork & Deploy** | 3-5 min | Any audience — one-click deployment |
+| 2 | **Meet the Agents** | 3-5 min | Technical — 14-agent architecture tour |
+| 3 | **Ask for a Quote** | 3-5 min | Any audience — live business value demo |
+| 4 | **See the Pipeline** | 5-7 min | AI Engineers — step-by-step agent execution |
+| 5 | **Customize with Copilot** | 5-7 min | Developers — add agents via GitHub Copilot |
+| 6 | **Open in Codespaces** | 2-3 min | Developers — zero-setup onboarding |
+
+### Quick Demo Commands
+
+```bash
+# Register agents in Foundry project
+python src/register_agents.py
+
+# Run pipeline with sample data (Scenario 4)
+python src/main.py --demo
+
+# Interactive chat with orchestrator
+python src/main.py
+```
+
+### Sample Data
+
+- **Input**: `data/sample_request.json` — CGL submission for a tech company with 3 competitor quotes
+- **Output**: `data/sample_response.json` — Complete pipeline result with recommendation and talk-track
 
 ---
 

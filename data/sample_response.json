@@ -1,0 +1,164 @@
+{
+  "description": "Expected pipeline output for the sample request — use as demo fallback",
+  "pipeline_duration_seconds": 8.4,
+  "agents_invoked": [
+    "submission-intake-agent",
+    "competitor-price-collection-agent",
+    "quote-normalization-agent",
+    "coverage-comparison-agent",
+    "pricing-variance-agent",
+    "risk-assessment-agent",
+    "recommendation-agent",
+    "compliance-guardrail-agent",
+    "advisor-explanation-agent"
+  ],
+  "submission": {
+    "id": "SUB-DEMO-001",
+    "product_type": "commercial_general_liability",
+    "insured_name": "Nexus Digital Solutions Ltd",
+    "business_description": "Technology consulting and software development services",
+    "sic_code": "7371",
+    "annual_revenue": 48000000,
+    "employee_count": 475,
+    "locations": ["Austin, TX", "Denver, CO"],
+    "territory": "US",
+    "requested_limit": 2000000,
+    "requested_deductible": 10000,
+    "missing_fields": [],
+    "modality": "text"
+  },
+  "comparison_matrix": {
+    "product_type": "commercial_general_liability",
+    "dimensions": [
+      {
+        "dimension": "Annual Premium (Gross)",
+        "carrier_value": "$42,500",
+        "competitor_values": {
+          "Pacific Shield": "$38,200",
+          "Continental Risk": "$41,800",
+          "Summit Specialty": "$44,100"
+        },
+        "carrier_position": "above_median"
+      },
+      {
+        "dimension": "Per-Occurrence Limit",
+        "carrier_value": "$2,000,000",
+        "competitor_values": {
+          "Pacific Shield": "$2,000,000",
+          "Continental Risk": "$2,000,000",
+          "Summit Specialty": "$2,000,000"
+        },
+        "carrier_position": "median"
+      },
+      {
+        "dimension": "Aggregate Limit",
+        "carrier_value": "$4,000,000",
+        "competitor_values": {
+          "Pacific Shield": "$4,000,000",
+          "Continental Risk": "$4,000,000",
+          "Summit Specialty": "$5,000,000"
+        },
+        "carrier_position": "below_median",
+        "notes": "Summit offers 25% higher aggregate"
+      },
+      {
+        "dimension": "Deductible",
+        "carrier_value": "$10,000",
+        "competitor_values": {
+          "Pacific Shield": "$5,000",
+          "Continental Risk": "$10,000",
+          "Summit Specialty": "$10,000"
+        },
+        "carrier_position": "median",
+        "notes": "Pacific Shield's lower deductible inflates their premium comparison"
+      },
+      {
+        "dimension": "Cyber Coverage",
+        "carrier_value": "Excluded",
+        "competitor_values": {
+          "Pacific Shield": "Excluded",
+          "Continental Risk": "Excluded",
+          "Summit Specialty": "$500K sublimit included"
+        },
+        "carrier_position": "below_median",
+        "notes": "Summit includes cyber sublimit — significant value-add for tech company"
+      },
+      {
+        "dimension": "Additional Insured",
+        "carrier_value": "Blanket (included)",
+        "competitor_values": {
+          "Pacific Shield": "Not included",
+          "Continental Risk": "Blanket (included)",
+          "Summit Specialty": "Blanket (included)"
+        },
+        "carrier_position": "above_median"
+      },
+      {
+        "dimension": "Financial Rating",
+        "carrier_value": "A (Excellent)",
+        "competitor_values": {
+          "Pacific Shield": "A- (Excellent)",
+          "Continental Risk": "A (Excellent)",
+          "Summit Specialty": "A+ (Superior)"
+        },
+        "carrier_position": "median"
+      }
+    ],
+    "apples_to_apples_adjustments": [
+      "Pacific Shield's $5K deductible vs. carrier's $10K — adjusting Pacific Shield premium upward ~$2,400 for true comparison gives adjusted premium of ~$40,600",
+      "Summit's $500K cyber sublimit adds ~$2,500-3,500 value — adjusting Summit's effective premium downward to ~$40,600-41,600"
+    ]
+  },
+  "pricing_variance": {
+    "carrier_premium": 42500,
+    "market_median": 41800,
+    "variance_percent": 1.67,
+    "market_position_rank": 3,
+    "total_competitors": 3,
+    "adequacy_verdict": "GREEN",
+    "sweet_spot_assessment": "Carrier is within the competitive sweet spot. After apples-to-apples adjustments for deductible and coverage differences, the effective variance narrows to approximately 0.5-2.2% — well within the GREEN band.",
+    "historical_loss_ratio": 0.52,
+    "target_loss_ratio": 0.55
+  },
+  "risk_assessment": {
+    "appetite_match": "IN_APPETITE",
+    "exposure_score": 4,
+    "hazard_grade": "B (Moderate)",
+    "referral_triggers": [],
+    "recommended_conditions": [
+      "Standard ISO CG 00 01 form acceptable",
+      "Consider cyber sublimit endorsement to enhance competitive position"
+    ],
+    "pricing_load_percent": 0
+  },
+  "recommendation": {
+    "action_type": "HOLD",
+    "adjustment_percent": 0,
+    "rationale": [
+      "Current premium ($42,500) is within 1.7% of market median ($41,800) — firmly in GREEN band",
+      "After apples-to-apples adjustments for deductible differences, carrier is effectively at market median",
+      "Loss history is favorable: 1 minor claim in 3 years, well below frequency expectations for SIC 7371",
+      "Risk is IN_APPETITE with moderate exposure (score 4/10) — no pricing load needed",
+      "Carrier's endorsement package (blanket AI + waiver of subrogation) exceeds Pacific Shield and matches Continental"
+    ],
+    "confidence": "High",
+    "conditions": [
+      "Consider adding cyber liability sublimit ($500K) to match Summit Specialty's offering — estimated cost: $2,500-3,500",
+      "If insured requests multi-year deal, up to 5% discount is within guardrail band"
+    ],
+    "expected_conversion_impact": "High probability of renewal — competitive pricing with strong coverage terms",
+    "guardrail_band_used": 10
+  },
+  "compliance": {
+    "status": "APPROVED",
+    "human_decision": null,
+    "antitrust_check": true,
+    "rate_filing_check": true,
+    "regulatory_check": true,
+    "data_governance_check": true,
+    "block_reason": null,
+    "audit_id": "AUDIT-DEMO-001",
+    "note": "APPROVED pending human team leader sign-off. All competitor data sourced from broker-shared market intelligence. No direct carrier-to-carrier pricing coordination detected."
+  },
+  "advisor_talk_track": "Your current premium of $42,500 is very competitive — it's broadly in line with the market. One alternative provider is offering a slightly lower price, but that comes with a lower deductible which changes the risk profile and they don't include additional insured coverage. Another provider is slightly higher but includes cyber coverage, which could be valuable for a technology company like yours.\n\nMy recommendation is to hold the current rate. Your coverage package is strong — you have blanket additional insured and waiver of subrogation included, which not all competitors offer. If you're interested in adding cyber protection, we can explore adding a sublimit endorsement for a modest additional premium.\n\nShall I walk through the coverage differences in more detail, or would you like me to prepare a formal renewal proposal?"
+}

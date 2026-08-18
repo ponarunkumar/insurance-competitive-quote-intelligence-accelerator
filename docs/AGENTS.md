@@ -233,34 +233,43 @@ flowchart LR
 
 ### Adding a New Agent
 
-1. Create a new Python class in `src/agents/<category>/`:
+1. Create a new Python module in `src/agents/<category>/`:
    ```python
-   from agent_framework import Agent
+   import os
+   from azure.ai.projects import AIProjectClient
+   from azure.ai.projects.models import PromptAgentDefinition
 
-   class MyNewAgent(Agent):
-       name = "my-new-agent"
-       model = "gpt-4o-mini"
-       system_prompt = """Your instructions here."""
+   AGENT_NAME = "my-new-agent"
+   MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o-mini")
+   SYSTEM_INSTRUCTIONS = """Your instructions here."""
 
-       async def run(self, context):
-           # Your logic
-           pass
+   def create_my_new_agent(project_client: AIProjectClient):
+       return project_client.agents.create_version(
+           agent_name=AGENT_NAME,
+           definition=PromptAgentDefinition(model=MODEL, instructions=SYSTEM_INSTRUCTIONS),
+       )
+
+   async def run_my_new_agent(project_client: AIProjectClient, input_data: dict) -> dict:
+       openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+       response = openai.responses.create(input="Your prompt here")
+       return {"result": response.output_text}
    ```
 
 2. Register in `agent.yaml`:
    ```yaml
    - name: my-new-agent
-     entry_point: src.agents.category.my_module:MyNewAgent
+     entry_point: src.agents.category.my_module
      model: gpt-4o-mini
    ```
 
 3. Add to the appropriate workflow in `src/workflows/`.
+4. Add to `src/register_agents.py` agent definitions list.
 
 ### Modifying an Existing Agent
 
-- **Change the model**: Update the `model` field in `agent.yaml` and the class
-- **Change behavior**: Edit the `system_prompt` in the agent class
-- **Change guardrails**: Modify the validation logic in the agent's `run()` method
+- **Change the model**: Update `MODEL` in the agent module and `agent.yaml`
+- **Change behavior**: Edit `SYSTEM_INSTRUCTIONS` in the agent module
+- **Change guardrails**: Modify the prompt or validation logic in the `run_*()` function
 - **Add a tool**: Create in `src/tools/`, register in `agent.yaml` tools section
 
 ### Insurance Line Customization
