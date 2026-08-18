@@ -23,74 +23,74 @@ protocol:
 
 agents:
   - name: quote-intelligence-orchestrator
-    entry_point: src.agents.orchestrator:QuoteIntelligenceOrchestrator
+    entry_point: src.agents.orchestrator
     model: gpt-4o
     description: Central coordinator for quote intelligence pipeline
 
   - name: submission-intake-agent
-    entry_point: src.agents.intake.submission_intake:SubmissionIntakeAgent
+    entry_point: src.agents.intake.submission_intake
     model: gpt-4o-mini
 
   - name: voice-intake-agent
-    entry_point: src.agents.intake.voice_intake:VoiceIntakeAgent
+    entry_point: src.agents.intake.voice_intake
     model: gpt-4o-mini
 
   - name: competitor-price-collection-agent
-    entry_point: src.agents.market_intelligence.price_collection:CompetitorPriceCollectionAgent
+    entry_point: src.agents.market_intelligence.price_collection
     model: gpt-4o-mini
 
   - name: quote-normalization-agent
-    entry_point: src.agents.market_intelligence.normalization:QuoteNormalizationAgent
+    entry_point: src.agents.market_intelligence.normalization
     model: gpt-4o-mini
 
   - name: coverage-comparison-agent
-    entry_point: src.agents.analysis.coverage_comparison:CoverageComparisonAgent
+    entry_point: src.agents.analysis.coverage_comparison
     model: gpt-4o
 
   - name: pricing-variance-agent
-    entry_point: src.agents.analysis.pricing_variance:PricingVarianceAgent
+    entry_point: src.agents.analysis.pricing_variance
     model: gpt-4o
 
   - name: risk-assessment-agent
-    entry_point: src.agents.analysis.risk_assessment:RiskAssessmentAgent
+    entry_point: src.agents.analysis.risk_assessment
     model: gpt-4o
 
   - name: recommendation-agent
-    entry_point: src.agents.decision.recommendation:RecommendationAgent
+    entry_point: src.agents.decision.recommendation
     model: gpt-4o
 
   - name: compliance-guardrail-agent
-    entry_point: src.agents.decision.compliance_guardrail:ComplianceGuardrailAgent
+    entry_point: src.agents.decision.compliance_guardrail
     model: gpt-4o
     approval_mode: always_require
 
   - name: advisor-explanation-agent
-    entry_point: src.agents.communication.advisor_explanation:AdvisorExplanationAgent
+    entry_point: src.agents.communication.advisor_explanation
     model: gpt-4o-mini
 
   - name: voice-response-agent
-    entry_point: src.agents.communication.voice_response:VoiceResponseAgent
+    entry_point: src.agents.communication.voice_response
     model: gpt-4o-mini
 
   - name: call-analytics-agent
-    entry_point: src.agents.coaching.call_analytics:CallAnalyticsAgent
+    entry_point: src.agents.coaching.call_analytics
     model: gpt-4o-mini
 
   - name: advisor-coaching-agent
-    entry_point: src.agents.coaching.advisor_coaching:AdvisorCoachingAgent
+    entry_point: src.agents.coaching.advisor_coaching
     model: gpt-4o
 
 workflows:
   - name: quote-intelligence-pipeline
-    entry_point: src.workflows.quote_intelligence:build_quote_intelligence_workflow
+    entry_point: src.workflows.quote_intelligence
     trigger: user_message
 
   - name: voice-quote-intelligence-pipeline
-    entry_point: src.workflows.voice_quote_intelligence:build_voice_quote_intelligence_workflow
+    entry_point: src.workflows.voice_quote_intelligence
     trigger: voice_call
 
   - name: coaching-report-pipeline
-    entry_point: src.workflows.coaching_report:build_coaching_report_workflow
+    entry_point: src.workflows.coaching_report
     trigger: user_message
 
 tools:

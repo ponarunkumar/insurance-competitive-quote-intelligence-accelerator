@@ -135,8 +135,9 @@ When you see **"Your deployment is complete"**:
 | Azure CLI | 2.60+ | [Install](https://learn.microsoft.com/cli/azure/install-azure-cli) |
 | Azure Developer CLI (azd) | 1.10+ | [Install](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) |
 | Python | 3.12+ | [Install](https://python.org/downloads) |
-| Docker | 24+ | [Install](https://docs.docker.com/get-docker/) (for container deployment) |
+| Foundry SDK | 2.3.0+ | `pip install "azure-ai-projects>=2.3.0"` |
 | Git | 2.40+ | [Install](https://git-scm.com/) |
+| Docker | 24+ (optional) | [Install](https://docs.docker.com/get-docker/) — for local container testing |
 
 ### Step 1: Clone and Configure
 
@@ -194,14 +195,19 @@ azd provision --output json
 # Portal → Resource Groups → rg-ins-qi-dev → Deployments
 ```
 
-### Step 5: Verify Endpoints
+### Step 5: Verify Deployment & Register Agents
 
 ```bash
 # Get all deployment outputs
 azd env get-values
 
-# Test agent health endpoint
-curl -s $(azd env get-value AGENT_ENDPOINT)/health
+# Set Foundry endpoint (from deployment outputs)
+export FOUNDRY_PROJECT_ENDPOINT=$(azd env get-value FOUNDRY_PROJECT_ENDPOINT)
+
+# Register all 14 agents in the Foundry project
+python src/register_agents.py
+
+# Verify in portal: https://ai.azure.com → Project → Build → Agents
 
 # View recent traces
 az monitor app-insights query \
@@ -281,9 +287,9 @@ After either deployment option completes, these steps finish the configuration:
 |---|------|------|-------------|
 | 1 | **Seed Azure SQL** | 5 min | Connect to SQL Server with admin creds → execute `data/seed_sql.sql` |
 | 2 | **Create AI Search indexes** | 15 min | Portal → AI Search → Import Data → create indexes: `underwriting-manuals`, `appetite-guides` |
-| 3 | **Build & push agent container** | 10 min | See [Deploy Agent Container](#deploy-agent-container) below |
+| 3 | **Register agents in Foundry** | 5 min | Run `python src/register_agents.py` |
 | 4 | **Configure APIM backends** | 10 min | Portal → APIM → APIs → add competitor endpoint URLs |
-| 5 | **Test with sample data** | 5 min | POST `data/sample_submission.json` to agent endpoint |
+| 5 | **Test with sample data** | 5 min | Run `python src/main.py --demo` or use Foundry Playground with `data/sample_request.json` |
 
 ### For AI Engineers
 
@@ -291,13 +297,33 @@ After either deployment option completes, these steps finish the configuration:
 |---|------|------|-------------|
 | 1 | **Upload Custom Speech phrase list** | 10 min | Portal → Speech → Custom Speech → upload insurance terminology |
 | 2 | **Create AI Search semantic config** | 10 min | Add semantic configuration to each index for improved RAG |
-| 3 | **Configure agent prompts** | 15 min | Edit `src/prompts/*.md` for your specific product lines |
-| 4 | **Set up evaluation** | 20 min | Configure Agent Framework evaluation in `tests/e2e/` |
-| 5 | **Connect Copilot Studio** | 15 min | Copilot Studio → New Agent → A2A connection to Container App |
+| 3 | **Configure agent prompts** | 15 min | Edit system instructions in agent modules under `src/agents/` |
+| 4 | **Set up evaluation** | 20 min | Configure Foundry evaluation rules via `project_client.evaluation_rules` |
+| 5 | **Connect Copilot Studio** | 15 min | Copilot Studio → New Agent → connect to Foundry hosted agent endpoint |
 
 ---
 
-### Deploy Agent Container
+### Deploy Agents to Foundry (Hosted — Recommended)
+
+Agents are deployed via the Foundry SDK — no Docker build required for production hosting:
+
+```bash
+# Ensure Foundry endpoint is set
+export FOUNDRY_PROJECT_ENDPOINT=$(azd env get-value FOUNDRY_PROJECT_ENDPOINT)
+
+# Register/update all 14 agents
+python src/register_agents.py
+
+# Test the pipeline with sample data
+python src/main.py --demo
+
+# Verify in Foundry Playground
+# Open https://ai.azure.com → Project → Agents → quote-intelligence-orchestrator → Playground
+```
+
+### Deploy Agent Container (Optional — Container Apps)
+
+If you prefer to self-host the agent code in Azure Container Apps (e.g., for custom networking or hybrid scenarios):
 
 ```bash
 # Get Container Registry login server from deployment outputs
@@ -312,7 +338,7 @@ docker build -t $ACR_SERVER/quote-intelligence-agent:latest .
 # Push to Azure Container Registry
 docker push $ACR_SERVER/quote-intelligence-agent:latest
 
-# Update the Container App to use the new image
+# Deploy to Container Apps (if provisioned)
 az containerapp update \
   --name ins-qi-dev-agent \
   --resource-group rg-ins-qi-dev \
@@ -351,13 +377,22 @@ az sql db show --server sql-ins-qi-dev --name InsuranceQuoteIntelligence \
 ### Run the Demo
 
 ```bash
-# Submit a sample quote request to the agent
-curl -X POST "$(azd env get-value AGENT_ENDPOINT)/api/quote-intelligence" \
-  -H "Content-Type: application/json" \
-  -d @data/sample_submission.json
+# Run the full pipeline with sample data
+python src/main.py --demo
 
-# Expected: JSON response with comparison matrix, pricing variance, and recommendation
+# Or interact with the orchestrator in chat mode
+python src/main.py
+
+# Expected: Step-by-step pipeline execution with comparison matrix,
+# pricing variance, recommendation, and advisor talk-track
 ```
+
+For a visual demo, use the **Foundry Playground**:
+1. Open [ai.azure.com](https://ai.azure.com) → Your Project → Agents
+2. Select `quote-intelligence-orchestrator` → Open in Playground
+3. Paste the sample submission from `data/sample_request.json`
+
+See [DEMO_SCENARIOS.md](DEMO_SCENARIOS.md) for full talk tracks and step-by-step guides.
 
 ---
 
