@@ -174,7 +174,8 @@ Result delivered (text in Teams, voice via TTS, or both)
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) v1.10+
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) v2.60+ (logged in via `az login`)
 - Python 3.12+
-- Docker (for local testing of the container image)
+- [Microsoft Foundry SDK](https://pypi.org/project/azure-ai-projects/) (`pip install "azure-ai-projects>=2.3.0"`)
+- Docker (optional — for local container testing)
 
 ### Modular Deployment (Recommended for Beginners)
 
@@ -287,9 +288,14 @@ azd up  # Prompts for all parameters interactively
 ### Verify Deployment
 
 ```bash
-# Check agent endpoint is responding
-azd env get-value AGENT_ENDPOINT
-curl -s $(azd env get-value AGENT_ENDPOINT)/health
+# Register agents in Foundry project
+python src/register_agents.py
+
+# Verify agents in Foundry portal
+# Open https://ai.azure.com → Your Project → Build → Agents
+
+# Run the pipeline with sample data
+python src/main.py --demo
 
 # View agent traces
 az monitor app-insights query --app $(azd env get-value APP_INSIGHTS_NAME) \
@@ -341,8 +347,9 @@ insurance-competitive-quote-intelligence-accelerator/
 │       └── contact_center_models.py  Call analytics, coaching, performance models
 │
 ├── data/                           Sample data for demos and testing
-│   ├── sample_submission.json      Example CGL risk (£2M builder)
-│   ├── sample_quotes/              5 competitor quote examples
+│   ├── sample_request.json        Demo submission (CGL for tech company)
+│   ├── sample_response.json       Expected pipeline output (demo fallback)
+│   ├── competitor_quotes.json     Competitor quote examples
 │   └── seed_sql.sql                Database schema + seed data
 │
 ├── tests/                          Test suites
@@ -355,7 +362,7 @@ insurance-competitive-quote-intelligence-accelerator/
 ├── azure.yaml                      Azure Developer CLI manifest
 ├── agent.yaml                      Foundry Hosted Agent manifest (14 agents, 3 workflows)
 ├── pyproject.toml                  Python dependencies and tooling config
-├── Dockerfile                      Container image for deployment
+├── Dockerfile                      Container image for local development (optional)
 ├── .env.sample                     Environment variable template
 └── README.md                       ← You are here
 ```
@@ -368,26 +375,35 @@ insurance-competitive-quote-intelligence-accelerator/
 
 #### Adding a New Agent
 
-1. Create a new Python file in the appropriate `src/agents/` subdirectory
-2. Inherit from `Agent` base class
-3. Define: `name`, `description`, `model`, `system_prompt`, `tools`
-4. Implement the `run()` method
-5. Register in `agent.yaml`
+1. Create a new Python module in the appropriate `src/agents/` subdirectory
+2. Define module constants: `AGENT_NAME`, `MODEL`, `SYSTEM_INSTRUCTIONS`
+3. Create a `create_*_agent(project_client)` registration function
+4. Create an `async def run_*(project_client, input_data)` execution function
+5. Register in `agent.yaml` and `src/register_agents.py`
 6. Wire into the appropriate workflow in `src/workflows/`
 
 ```python
 # Example: Adding a "Renewal Pricing Agent"
-from agent_framework import Agent, AgentContext
+import os
+from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 
-class RenewalPricingAgent(Agent):
-    name = "renewal-pricing-agent"
-    model = "gpt-4o"
-    system_prompt = """..."""
-    tools = ["operational_datastore", "ai_search"]
+AGENT_NAME = "renewal-pricing-agent"
+MODEL = os.environ.get("FOUNDRY_MODEL_NAME", "gpt-4o")
+SYSTEM_INSTRUCTIONS = """You are the Renewal Pricing Agent..."""
 
-    async def run(self, ctx: AgentContext, input_data: dict) -> dict:
-        # Your logic here
-        return {"renewal_recommendation": result}
+
+def create_renewal_pricing_agent(project_client: AIProjectClient):
+    return project_client.agents.create_version(
+        agent_name=AGENT_NAME,
+        definition=PromptAgentDefinition(model=MODEL, instructions=SYSTEM_INSTRUCTIONS),
+    )
+
+
+async def run_renewal_pricing(project_client: AIProjectClient, input_data: dict) -> dict:
+    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+    response = openai.responses.create(input=f"Analyze renewal: {input_data}")
+    return {"renewal_recommendation": response.output_text}
 ```
 
 #### Adding a New Competitor Source
@@ -413,11 +429,14 @@ pip install -e ".[dev]"
 # Run tests
 pytest tests/unit/ -v
 
-# Run the agent locally (mock mode)
-python -m agent_framework serve --config agent.yaml --mock-tools
+# Register agents in your Foundry project
+python src/register_agents.py
 
-# Run with real Azure services (requires .env configured)
-python -m agent_framework serve --config agent.yaml
+# Run the pipeline with sample data (demo mode)
+python src/main.py --demo
+
+# Interactive chat with the orchestrator
+python src/main.py
 ```
 
 ---

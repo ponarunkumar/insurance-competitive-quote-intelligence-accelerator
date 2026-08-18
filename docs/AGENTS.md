@@ -70,7 +70,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.orchestrator:QuoteIntelligenceOrchestrator` |
+| **Entry Point** | `src.agents.orchestrator` → `run_orchestrator()` |
 | **Model** | GPT-4o |
 | **Tools Used** | None (delegates to agents) |
 | **Key Behavior** | Inspects input modality, selects pipeline (text/voice/coaching), manages error recovery |
@@ -80,7 +80,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.intake.submission_intake:SubmissionIntakeAgent` |
+| **Entry Point** | `src.agents.intake.submission_intake` → `run_submission_intake()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | `quote_parser`, `content_understanding` |
 | **Key Behavior** | Extracts structured fields from free-text; flags missing fields for follow-up |
@@ -90,7 +90,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.intake.voice_intake:VoiceIntakeAgent` |
+| **Entry Point** | `src.agents.intake.voice_intake` → `run_voice_intake()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | `realtime_transcription`, `diarization`, `translation` |
 | **Key Behavior** | Processes real-time speech; identifies key entities from conversational language |
@@ -100,7 +100,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.market_intelligence.price_collection:CompetitorPriceCollectionAgent` |
+| **Entry Point** | `src.agents.market_intelligence.price_collection` → `run_price_collection()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | `competitor_api`, `market_data` |
 | **Key Behavior** | Concurrent fan-out to N sources; tolerates partial failure (min 2 responses) |
@@ -110,7 +110,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.market_intelligence.normalization:QuoteNormalizationAgent` |
+| **Entry Point** | `src.agents.market_intelligence.normalization` → `run_normalization()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | None (pure transformation) |
 | **Key Behavior** | Maps heterogeneous quote formats to `NormalizedQuote` schema |
@@ -120,7 +120,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.analysis.coverage_comparison:CoverageComparisonAgent` |
+| **Entry Point** | `src.agents.analysis.coverage_comparison` → `run_coverage_comparison()` |
 | **Model** | GPT-4o |
 | **Tools Used** | `operational_datastore` |
 | **Key Behavior** | Builds multi-dimensional comparison matrix; identifies "apples-to-apples" adjustments |
@@ -130,7 +130,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.analysis.pricing_variance:PricingVarianceAgent` |
+| **Entry Point** | `src.agents.analysis.pricing_variance` → `run_pricing_variance()` |
 | **Model** | GPT-4o |
 | **Tools Used** | `operational_datastore` |
 | **Key Behavior** | Computes market position rank, adequacy verdict (GREEN/AMBER/RED), sweet-spot |
@@ -140,7 +140,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.analysis.risk_assessment:RiskAssessmentAgent` |
+| **Entry Point** | `src.agents.analysis.risk_assessment` → `run_risk_assessment()` |
 | **Model** | GPT-4o |
 | **Tools Used** | `ai_search`, `operational_datastore` |
 | **Key Behavior** | RAG-based research into underwriting manuals; scores appetite and exposure |
@@ -150,7 +150,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.decision.recommendation:RecommendationAgent` |
+| **Entry Point** | `src.agents.decision.recommendation` → `run_recommendation()` |
 | **Model** | GPT-4o |
 | **Tools Used** | None (pure reasoning) |
 | **Key Behavior** | Proposes rate action within configurable guardrail bands (default ±15%) |
@@ -160,7 +160,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.decision.compliance_guardrail:ComplianceGuardrailAgent` |
+| **Entry Point** | `src.agents.decision.compliance_guardrail` → `run_compliance_check()` |
 | **Model** | GPT-4o |
 | **Tools Used** | None (policy evaluation) |
 | **Key Behavior** | Validates antitrust, rate filing, regulatory, and data governance compliance |
@@ -170,7 +170,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.communication.advisor_explanation:AdvisorExplanationAgent` |
+| **Entry Point** | `src.agents.communication.advisor_explanation` → `run_advisor_explanation()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | None (text generation) |
 | **Key Behavior** | Generates concise, jargon-free talk-track for advisor-to-client conversation |
@@ -180,7 +180,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.communication.voice_response:VoiceResponseAgent` |
+| **Entry Point** | `src.agents.communication.voice_response` → `run_voice_response()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | `text_to_speech` |
 | **Key Behavior** | Converts explanation to SSML-formatted speech; handles prosody and emphasis |
@@ -190,7 +190,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.coaching.call_analytics:CallAnalyticsAgent` |
+| **Entry Point** | `src.agents.coaching.call_analytics` → `run_call_analytics()` |
 | **Model** | GPT-4o-mini |
 | **Tools Used** | `call_summarization`, `call_recording`, `disposition_codes` |
 | **Key Behavior** | Analyzes completed call transcripts; identifies patterns, objections, conversion signals |
@@ -200,7 +200,7 @@ flowchart LR
 
 | Property | Value |
 |----------|-------|
-| **Entry Point** | `src.agents.coaching.advisor_coaching:AdvisorCoachingAgent` |
+| **Entry Point** | `src.agents.coaching.advisor_coaching` → `run_coaching_report()` |
 | **Model** | GPT-4o |
 | **Tools Used** | `fabric_analytics` |
 | **Key Behavior** | Aggregates analytics across calls; generates personalized improvement recommendations |
