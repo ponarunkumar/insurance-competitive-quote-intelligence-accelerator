@@ -394,6 +394,12 @@ For a visual demo, use the **Foundry Playground**:
 
 See [DEMO_SCENARIOS.md](DEMO_SCENARIOS.md) for full talk tracks and step-by-step guides.
 
+### Wire Foundry Built-in Tools
+
+After registering agents, add CodeInterpreter, Bing Grounding, and File Search tools:
+
+→ **[FOUNDRY_TOOLS_QUICKSTART.md](FOUNDRY_TOOLS_QUICKSTART.md)** — Self-Service Enablement Kit (~45 min)
+
 ---
 
 ## Next Steps by Role
@@ -411,6 +417,7 @@ See [DEMO_SCENARIOS.md](DEMO_SCENARIOS.md) for full talk tracks and step-by-step
 - [ ] Set up CI/CD pipeline with GitHub Actions
 
 ### AI Engineer
+- [ ] Wire Foundry built-in tools → see [FOUNDRY_TOOLS_QUICKSTART.md](FOUNDRY_TOOLS_QUICKSTART.md)
 - [ ] Fine-tune system prompts based on real quote data
 - [ ] Train Custom Speech model with insurance call recordings
 - [ ] Build evaluation dataset for agent quality scoring

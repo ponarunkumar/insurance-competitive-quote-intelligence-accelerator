@@ -509,6 +509,9 @@ This accelerator is designed to be adapted for any insurance carrier:
 
 - [Architecture Guide](docs/ARCHITECTURE.md)
 - [Getting Started](docs/GETTING_STARTED.md)
+- [Foundry Tools Quick Start](docs/FOUNDRY_TOOLS_QUICKSTART.md) — Self-Service Enablement Kit
+- [Demo Scenarios](docs/DEMO_SCENARIOS.md) — 6 modular demo scenarios with talk tracks
+- [Agent Reference](docs/AGENTS.md)
 - [API Contracts](docs/API_CONTRACTS.md)
 - [Speech Setup Guide](docs/SPEECH_SETUP.md)
 - [Multimodal Guide](docs/MULTIMODAL_GUIDE.md)
