@@ -1,18 +1,51 @@
 """
 Coaching Report Workflow — team leader analytics pipeline.
 
-Secondary workflow demonstrating the same Foundry project serving multiple use cases.
+Uses the Microsoft Agent Framework SequentialBuilder for a simple 2-step pipeline.
+Demonstrates the same Foundry project serving multiple use cases.
 
+Orchestration Pattern: Sequential (agent-framework-orchestrations)
 Azure Services: Azure AI Foundry, Azure AI Language, Microsoft Fabric
 """
 
+import json
+from typing import Any
+
+from agent_framework import Agent
+from agent_framework.orchestrations import SequentialBuilder
 from azure.ai.projects import AIProjectClient
 
-# Agent names for coaching pipeline
+from src.agents.coaching.call_analytics import AGENT_NAME as ANALYTICS_AGENT
+from src.agents.coaching.advisor_coaching import AGENT_NAME as COACHING_AGENT
+
+
+# Coaching pipeline agents
 COACHING_PIPELINE_AGENTS = [
-    "call-analytics-agent",
-    "advisor-coaching-agent",
+    ANALYTICS_AGENT,
+    COACHING_AGENT,
 ]
+
+
+def build_coaching_pipeline(project_client: AIProjectClient) -> Any:
+    """
+    Build the coaching Sequential orchestration using Agent Framework.
+
+    Two-step pipeline: Call Analytics → Advisor Coaching.
+    """
+    agents = []
+    for agent_name in COACHING_PIPELINE_AGENTS:
+        agent = Agent(
+            name=agent_name,
+            instructions=(
+                f"You are the '{agent_name}' step in the coaching pipeline. "
+                f"Analyze call data and generate coaching insights."
+            ),
+            client=project_client.get_openai_client(agent_name=agent_name),
+        )
+        agents.append(agent)
+
+    workflow = SequentialBuilder(participants=agents).build()
+    return workflow
 
 
 async def run_coaching_report_pipeline(
@@ -29,24 +62,14 @@ async def run_coaching_report_pipeline(
     1. Call Analytics — process recent call transcripts
     2. Advisor Coaching — generate performance report with recommendations
     """
-    results = {"input": input_data}
-    pipeline_context = str(input_data)
+    workflow = build_coaching_pipeline(project_client)
 
-    for agent_name in COACHING_PIPELINE_AGENTS:
-        openai = project_client.get_openai_client(agent_name=agent_name)
+    pipeline_input = json.dumps(input_data, indent=2)
+    result = await workflow(pipeline_input)
 
-        prompt = (
-            f"Process the following data through your pipeline step.\n"
-            f"Context from previous steps: {pipeline_context}\n"
-            f"Original input: {input_data}"
-        )
-
-        response = openai.responses.create(input=prompt)
-
-        step_result = response.output_text
-        results[agent_name] = step_result
-        pipeline_context = step_result
-
-    results["pipeline_complete"] = True
-    results["agents_invoked"] = COACHING_PIPELINE_AGENTS
-    return results
+    return {
+        "pipeline_output": result,
+        "pipeline_complete": True,
+        "orchestration_pattern": "sequential",
+        "agents_invoked": COACHING_PIPELINE_AGENTS,
+    }

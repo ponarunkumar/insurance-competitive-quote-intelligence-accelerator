@@ -1,15 +1,20 @@
 """
 Insurance Competitive Quote Intelligence — Orchestrator Agent
 
-The central coordinator that routes requests to specialist agents using
-the Microsoft Agent Framework with Foundry Hosted Agents.
+Uses the Microsoft Agent Framework HandoffBuilder for zero-latency code-level
+routing based on input modality. No LLM call needed for triage — the orchestrator
+dispatches to the correct pipeline (text, voice, coaching) via deterministic logic.
 
+Orchestration Pattern: Handoff (agent-framework-orchestrations)
 Azure Services: Azure AI Foundry, Azure OpenAI (via Foundry SDK)
 """
 
+import json
 import os
 from typing import Any
 
+from agent_framework import Agent
+from agent_framework.orchestrations import HandoffBuilder
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 from azure.identity import DefaultAzureCredential
@@ -57,47 +62,111 @@ def create_orchestrator_agent(project_client: AIProjectClient) -> Any:
     return agent
 
 
-async def run_orchestrator(project_client: AIProjectClient, input_data: dict[str, Any]) -> dict[str, Any]:
+def detect_modality(input_data: dict[str, Any]) -> str:
     """
-    Execute the quote intelligence pipeline.
+    Determine input modality for zero-latency routing.
 
-    Uses Foundry Responses API to orchestrate the conversation with the agent.
+    Returns: "voice", "coaching", or "text" (default).
+    No LLM call needed — this is pure code-level dispatch.
     """
-    modality = input_data.get("modality", "text")
+    # Explicit modality field
+    modality = input_data.get("modality", "").lower()
+    if modality in ("voice", "call", "audio"):
+        return "voice"
 
-    # Get OpenAI client bound to this agent
-    openai = project_client.get_openai_client(agent_name=AGENT_NAME)
+    # Coaching report request detection
+    request_type = input_data.get("request_type", "").lower()
+    if request_type in ("coaching", "coaching_report", "performance_review"):
+        return "coaching"
+    if "coaching" in input_data.get("query", "").lower():
+        return "coaching"
 
-    # Create a conversation for multi-turn orchestration
-    conversation = openai.conversations.create()
+    # Voice indicators
+    if any(key in input_data for key in ("call_id", "audio_url", "transcript_url")):
+        return "voice"
 
-    # Build the orchestration prompt based on modality
-    if modality == "voice":
-        prompt = (
-            f"Process this voice-initiated quote request. "
-            f"First transcribe via Voice Intake, then run the full pipeline.\n"
-            f"Input: {input_data}"
-        )
-    elif modality == "document":
-        prompt = (
-            f"Process this document-based submission. "
-            f"Parse via Document Intelligence, then run the full pipeline.\n"
-            f"Input: {input_data}"
-        )
-    else:
-        prompt = (
-            f"Process this text-based quote request through the full pipeline.\n"
-            f"Input: {input_data}"
-        )
+    return "text"
 
-    # Execute via Responses API
-    response = openai.responses.create(
-        conversation=conversation.id,
-        input=prompt,
+
+def build_handoff_orchestrator(project_client: AIProjectClient) -> Any:
+    """
+    Build the Handoff orchestration using Agent Framework.
+
+    The orchestrator uses code-level routing (detect_modality) to dispatch
+    to the appropriate pipeline — no LLM call needed for triage.
+    """
+    # Define the three pipeline entry points as agents
+    text_pipeline = Agent(
+        name="text-quote-pipeline",
+        instructions=(
+            "Execute the full text-based quote intelligence pipeline: "
+            "Intake → Price Collection → Normalization → Comparison → "
+            "Variance → Risk → Recommendation → Compliance (HITL) → Explanation."
+        ),
+        client=project_client.get_openai_client(agent_name=AGENT_NAME),
     )
 
+    voice_pipeline = Agent(
+        name="voice-quote-pipeline",
+        instructions=(
+            "Execute the voice-initiated pipeline: "
+            "Voice Intake (STT) → full text pipeline → Voice Response (TTS)."
+        ),
+        client=project_client.get_openai_client(agent_name=AGENT_NAME),
+    )
+
+    coaching_pipeline = Agent(
+        name="coaching-report-pipeline",
+        instructions=(
+            "Execute the coaching report pipeline: "
+            "Call Analytics → Advisor Coaching."
+        ),
+        client=project_client.get_openai_client(agent_name=AGENT_NAME),
+    )
+
+    # Build Handoff — triage decides which pipeline to invoke
+    triage = Agent(
+        name="triage",
+        instructions="Route to the correct pipeline based on input modality.",
+        client=project_client.get_openai_client(agent_name=AGENT_NAME),
+    )
+
+    workflow = (
+        HandoffBuilder()
+        .participants([triage, text_pipeline, voice_pipeline, coaching_pipeline])
+        .with_start_agent(triage)
+        .build()
+    )
+    return workflow
+
+
+async def run_orchestrator(
+    project_client: AIProjectClient,
+    input_data: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Execute the orchestrator with code-level Handoff routing.
+
+    Zero-latency triage: detect_modality() determines the pipeline
+    without an LLM call, then dispatches to the appropriate workflow.
+    """
+    from src.workflows.quote_intelligence import run_quote_intelligence_pipeline
+    from src.workflows.voice_quote_intelligence import run_voice_quote_intelligence_pipeline
+    from src.workflows.coaching_report import run_coaching_report_pipeline
+
+    # Zero-latency code-level routing (no LLM call for triage)
+    modality = detect_modality(input_data)
+
+    if modality == "voice":
+        result = await run_voice_quote_intelligence_pipeline(project_client, input_data)
+    elif modality == "coaching":
+        result = await run_coaching_report_pipeline(project_client, input_data)
+    else:
+        result = await run_quote_intelligence_pipeline(project_client, input_data)
+
     return {
-        "result": response.output_text,
-        "conversation_id": conversation.id,
-        "modality": modality,
+        "orchestration_pattern": "handoff",
+        "modality_detected": modality,
+        "routing": "code-level (zero-latency, no LLM triage call)",
+        **result,
     }

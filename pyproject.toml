@@ -10,8 +10,9 @@ dependencies = [
     # Microsoft Foundry SDK (primary)
     "azure-ai-projects>=2.3.0",
     "azure-identity>=1.17.0",
-    # Microsoft Agent Framework (hosted agents)
+    # Microsoft Agent Framework (hosted agents + orchestrations)
     "agent-framework>=0.3.0",
+    "agent-framework-orchestrations>=0.3.0",
     "agent-framework-foundry-hosting>=1.0.0a0",
     # Azure AI Services
     "azure-search-documents>=11.6.0",

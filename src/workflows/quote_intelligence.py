@@ -1,26 +1,68 @@
 """
 Quote Intelligence Workflow — primary text-initiated pipeline.
 
-Orchestrates the sequential agent pipeline using Microsoft Foundry SDK.
-Each agent is registered as a Foundry Prompt Agent and invoked via the
-Responses API with conversation context for multi-turn orchestration.
+Uses the Microsoft Agent Framework SequentialBuilder to orchestrate 9 specialist
+agents in a linear pipeline. Each agent's output feeds the next as context.
+
+Orchestration Pattern: Sequential (agent-framework-orchestrations)
+Azure Services: Azure AI Foundry, Azure OpenAI (via Foundry SDK)
 """
 
-from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import PromptAgentDefinition
+import json
+from typing import Any
 
-# Agent names in pipeline order
+from agent_framework import Agent
+from agent_framework.orchestrations import SequentialBuilder
+from azure.ai.projects import AIProjectClient
+
+from src.agents.intake.submission_intake import AGENT_NAME as INTAKE_AGENT
+from src.agents.market_intelligence.price_collection import AGENT_NAME as PRICE_AGENT
+from src.agents.market_intelligence.normalization import AGENT_NAME as NORMALIZE_AGENT
+from src.agents.analysis.coverage_comparison import AGENT_NAME as COMPARISON_AGENT
+from src.agents.analysis.pricing_variance import AGENT_NAME as VARIANCE_AGENT
+from src.agents.analysis.risk_assessment import AGENT_NAME as RISK_AGENT
+from src.agents.decision.recommendation import AGENT_NAME as RECOMMENDATION_AGENT
+from src.agents.decision.compliance_guardrail import AGENT_NAME as COMPLIANCE_AGENT
+from src.agents.communication.advisor_explanation import AGENT_NAME as EXPLANATION_AGENT
+
+
+# Pipeline agent names in execution order
 PIPELINE_AGENTS = [
-    "submission-intake-agent",
-    "competitor-price-collection-agent",
-    "quote-normalization-agent",
-    "coverage-comparison-agent",
-    "pricing-variance-agent",
-    "risk-assessment-agent",
-    "recommendation-agent",
-    "compliance-guardrail-agent",
-    "advisor-explanation-agent",
+    INTAKE_AGENT,
+    PRICE_AGENT,
+    NORMALIZE_AGENT,
+    COMPARISON_AGENT,
+    VARIANCE_AGENT,
+    RISK_AGENT,
+    RECOMMENDATION_AGENT,
+    COMPLIANCE_AGENT,
+    EXPLANATION_AGENT,
 ]
+
+
+def build_sequential_pipeline(project_client: AIProjectClient) -> Any:
+    """
+    Build the Sequential orchestration using Agent Framework.
+
+    Each agent is backed by a Foundry Prompt Agent and invoked via the
+    Responses API. The SequentialBuilder chains them so each agent's
+    output automatically becomes the next agent's input.
+    """
+    agents = []
+    for agent_name in PIPELINE_AGENTS:
+        agent = Agent(
+            name=agent_name,
+            instructions=(
+                f"You are the '{agent_name}' step in the quote intelligence pipeline. "
+                f"Process the input from the previous step and produce structured output "
+                f"for the next step."
+            ),
+            client=project_client.get_openai_client(agent_name=agent_name),
+        )
+        agents.append(agent)
+
+    workflow = SequentialBuilder(participants=agents).build()
+    return workflow
 
 
 async def run_quote_intelligence_pipeline(
@@ -30,7 +72,7 @@ async def run_quote_intelligence_pipeline(
     """
     Execute the competitive quote intelligence workflow.
 
-    Pattern: Sequential pipeline with conversation context passed between agents.
+    Pattern: Sequential — each agent processes and passes to the next.
     Entry: Text or document submission.
 
     Flow:
@@ -44,24 +86,16 @@ async def run_quote_intelligence_pipeline(
     8. Compliance & Guardrail — HITL gate (human approval required)
     9. Advisor Explanation (plain-language talk-track)
     """
-    results = {"input": input_data}
-    pipeline_context = str(input_data)
+    # Build the sequential orchestration
+    workflow = build_sequential_pipeline(project_client)
 
-    for agent_name in PIPELINE_AGENTS:
-        openai = project_client.get_openai_client(agent_name=agent_name)
+    # Execute the full pipeline — SequentialBuilder handles context passing
+    pipeline_input = json.dumps(input_data, indent=2)
+    result = await workflow(pipeline_input)
 
-        prompt = (
-            f"Process the following data through your pipeline step.\n"
-            f"Context from previous steps: {pipeline_context}\n"
-            f"Original input: {input_data}"
-        )
-
-        response = openai.responses.create(input=prompt)
-
-        step_result = response.output_text
-        results[agent_name] = step_result
-        pipeline_context = step_result
-
-    results["pipeline_complete"] = True
-    results["agents_invoked"] = PIPELINE_AGENTS
-    return results
+    return {
+        "pipeline_output": result,
+        "pipeline_complete": True,
+        "orchestration_pattern": "sequential",
+        "agents_invoked": PIPELINE_AGENTS,
+    }
