@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "8054318564494147100"
+      "version": "0.46.1.21595",
+      "templateHash": "15445804163981465734"
     }
   },
   "parameters": {
@@ -44,6 +44,20 @@
       "defaultValue": true,
       "metadata": {
         "description": "Stage 1: Deploy Core AI services (AI Foundry, OpenAI, Speech, Search, Monitor)"
+      }
+    },
+    "deployHostedAgent": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Optional: deploy the Container Apps hosted-agent runtime (registry, environment, container app). Requires a built agent image via `azd deploy`; leave off until the image exists so it does not block core AI provisioning."
+      }
+    },
+    "deployContentUnderstanding": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Optional service: Deploy Azure AI Content Understanding. This is not available in all regions and can block provisioning in some subscriptions/locations."
       }
     },
     "deployDataLayer": {
@@ -124,8 +138,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "8804079162708044216"
+              "version": "0.46.1.21595",
+              "templateHash": "2395052718306622346"
             }
           },
           "parameters": {
@@ -203,8 +217,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "8836844238927717068"
+              "version": "0.46.1.21595",
+              "templateHash": "16273788021438171528"
             }
           },
           "parameters": {
@@ -329,8 +343,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "16845925018085046814"
+              "version": "0.46.1.21595",
+              "templateHash": "238581544491477805"
             }
           },
           "parameters": {
@@ -442,8 +456,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "17868613197757598924"
+              "version": "0.46.1.21595",
+              "templateHash": "4376909855747629571"
             }
           },
           "parameters": {
@@ -521,7 +535,7 @@
       "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "aihub-deployment",
+      "name": "ai-storage-deployment",
       "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -530,18 +544,13 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('aih-{0}', parameters('resourceBaseName'))]"
+            "value": "[format('sa{0}ml', replace(parameters('resourceBaseName'), '-', ''))]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
-          },
-          "keyVaultId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
-          "appInsightsId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
-          "storageAccountId": {
-            "value": ""
           }
         },
         "template": {
@@ -550,15 +559,15 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15526645544286984686"
+              "version": "0.46.1.21595",
+              "templateHash": "1148864154311596757"
             }
           },
           "parameters": {
             "name": {
               "type": "string",
               "metadata": {
-                "description": "Name of the AI Foundry hub"
+                "description": "Name of the storage account for Azure AI Foundry"
               }
             },
             "location": {
@@ -574,43 +583,24 @@
               "metadata": {
                 "description": "Tags"
               }
-            },
-            "keyVaultId": {
-              "type": "string",
-              "metadata": {
-                "description": "Key Vault resource ID for secrets"
-              }
-            },
-            "appInsightsId": {
-              "type": "string",
-              "metadata": {
-                "description": "Application Insights resource ID"
-              }
-            },
-            "storageAccountId": {
-              "type": "string",
-              "metadata": {
-                "description": "Storage account resource ID for agent state"
-              }
             }
           },
           "resources": [
             {
-              "type": "Microsoft.MachineLearningServices/workspaces",
-              "apiVersion": "2024-10-01",
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
               "name": "[parameters('name')]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
-              "kind": "Hub",
-              "identity": {
-                "type": "SystemAssigned"
+              "sku": {
+                "name": "Standard_LRS"
               },
+              "kind": "StorageV2",
               "properties": {
-                "friendlyName": "Insurance Quote Intelligence Hub",
-                "description": "AI Foundry hub for competitive quote intelligence multi-agent system",
-                "keyVault": "[parameters('keyVaultId')]",
-                "applicationInsights": "[parameters('appInsightsId')]",
-                "storageAccount": "[parameters('storageAccountId')]",
+                "accessTier": "Hot",
+                "allowBlobPublicAccess": false,
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
                 "publicNetworkAccess": "Enabled"
               }
             }
@@ -618,22 +608,16 @@
           "outputs": {
             "id": {
               "type": "string",
-              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
             },
             "name": {
               "type": "string",
               "value": "[parameters('name')]"
-            },
-            "principalId": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
             }
           }
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment')]",
         "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
       ]
     },
@@ -641,7 +625,7 @@
       "condition": "[parameters('deployCoreAI')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "aiproject-deployment",
+      "name": "foundry-deployment",
       "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -649,16 +633,18 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "name": {
-            "value": "[format('aip-{0}', parameters('resourceBaseName'))]"
+          "accountName": {
+            "value": "[format('aif-{0}', parameters('resourceBaseName'))]"
+          },
+          "projectName": {
+            "value": "[format('{0}-project', parameters('resourceBaseName'))]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
-          },
-          "hubId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]"
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -666,15 +652,21 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15799479659525204948"
+              "version": "0.46.1.21595",
+              "templateHash": "1737313615510355068"
             }
           },
           "parameters": {
-            "name": {
+            "accountName": {
               "type": "string",
               "metadata": {
-                "description": "Name of the AI Foundry project"
+                "description": "Name of the Foundry account (Cognitive Services multi-service resource)"
+              }
+            },
+            "projectName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Foundry project (sub-resource of the account)"
               }
             },
             "location": {
@@ -691,73 +683,102 @@
                 "description": "Tags"
               }
             },
-            "hubId": {
+            "projectDisplayName": {
               "type": "string",
+              "defaultValue": "Quote Intelligence Agents",
               "metadata": {
-                "description": "AI Foundry Hub resource ID"
+                "description": "Friendly display name for the project"
               }
             },
-            "enableAgentService": {
-              "type": "bool",
-              "defaultValue": true,
+            "projectDescription": {
+              "type": "string",
+              "defaultValue": "Multi-agent project for competitive quote intelligence in insurance contact centers",
               "metadata": {
-                "description": "Enable Agent Service"
+                "description": "Description for the project"
               }
             }
           },
           "resources": [
             {
-              "type": "Microsoft.MachineLearningServices/workspaces",
-              "apiVersion": "2024-10-01",
-              "name": "[parameters('name')]",
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2025-06-01",
+              "name": "[parameters('accountName')]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
-              "kind": "Project",
+              "kind": "AIServices",
+              "sku": {
+                "name": "S0"
+              },
               "identity": {
                 "type": "SystemAssigned"
               },
               "properties": {
-                "friendlyName": "Quote Intelligence Agents",
-                "description": "Multi-agent project for competitive quote intelligence in insurance contact centers",
-                "hubResourceId": "[parameters('hubId')]",
-                "publicNetworkAccess": "Enabled"
+                "customSubDomainName": "[parameters('accountName')]",
+                "allowProjectManagement": true,
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": false
               }
             },
             {
-              "condition": "[parameters('enableAgentService')]",
-              "type": "Microsoft.MachineLearningServices/workspaces/agents",
-              "apiVersion": "2024-10-01",
-              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+              "type": "Microsoft.CognitiveServices/accounts/projects",
+              "apiVersion": "2025-06-01",
+              "name": "[format('{0}/{1}', parameters('accountName'), parameters('projectName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
               "properties": {
-                "description": "Agent service for insurance quote intelligence orchestration"
+                "displayName": "[parameters('projectDisplayName')]",
+                "description": "[parameters('projectDescription')]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
               ]
             }
           ],
           "outputs": {
-            "id": {
+            "accountId": {
               "type": "string",
-              "value": "[resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name'))]"
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName'))]"
             },
-            "name": {
+            "accountName": {
               "type": "string",
-              "value": "[parameters('name')]"
+              "value": "[parameters('accountName')]"
             },
-            "principalId": {
+            "accountPrincipalId": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', parameters('name')), '2024-10-01', 'full').identity.principalId]"
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2025-06-01', 'full').identity.principalId]"
+            },
+            "accountEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2025-06-01').endpoint]"
+            },
+            "projectId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName'))]"
+            },
+            "projectName": {
+              "type": "string",
+              "value": "[parameters('projectName')]"
+            },
+            "projectPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName')), '2025-06-01', 'full').identity.principalId]"
+            },
+            "projectEndpoint": {
+              "type": "string",
+              "value": "[format('{0}api/projects/{1}', reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('accountName')), '2025-06-01').endpoint, parameters('projectName'))]"
             }
           }
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment')]"
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
       ]
     },
     {
-      "condition": "[parameters('deployCoreAI')]",
+      "condition": "[and(parameters('deployCoreAI'), parameters('deployHostedAgent'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "agent-deployment",
@@ -777,10 +798,11 @@
           "tags": {
             "value": "[parameters('tags')]"
           },
-          "projectId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aiproject-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
+          "projectId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment'), '2025-04-01').outputs.projectId.value), createObject('value', ''))]",
           "containerRegistryId": {
             "value": ""
-          }
+          },
+          "environmentVariables": "[if(parameters('deployCoreAI'), createObject('value', createObject('FOUNDRY_PROJECT_ENDPOINT', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment'), '2025-04-01').outputs.projectEndpoint.value, 'FOUNDRY_MODEL_NAME', 'gpt-4o', 'AZURE_LOCATION', parameters('location'), 'APPLICATIONINSIGHTS_CONNECTION_STRING', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment'), '2025-04-01').outputs.connectionString.value)), createObject('value', createObject()))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -788,8 +810,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "17663728514961861982"
+              "version": "0.46.1.21595",
+              "templateHash": "2630138213600284624"
             }
           },
           "parameters": {
@@ -882,8 +904,18 @@
                 "template": {
                   "containers": [
                     {
+                      "copy": [
+                        {
+                          "name": "env",
+                          "count": "[length(items(parameters('environmentVariables')))]",
+                          "input": {
+                            "name": "[items(parameters('environmentVariables'))[copyIndex('env')].key]",
+                            "value": "[items(parameters('environmentVariables'))[copyIndex('env')].value]"
+                          }
+                        }
+                      ],
                       "name": "agent",
-                      "image": "[if(not(empty(parameters('containerImage'))), parameters('containerImage'), format('{0}/quote-intelligence-agent:latest', reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}cr', replace(parameters('name'), '-', ''))), '2023-07-01').loginServer))]",
+                      "image": "[if(not(empty(parameters('containerImage'))), parameters('containerImage'), 'mcr.microsoft.com/k8se/quickstart:latest')]",
                       "resources": {
                         "cpu": "[json('1.0')]",
                         "memory": "2Gi"
@@ -947,8 +979,71 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aiproject-deployment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-deployment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment')]",
         "[subscriptionResourceId('Microsoft.Resources/deployments', 'rg-deployment')]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployCoreAI'), parameters('deployHostedAgent'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "foundry-rbac-deployment",
+      "resourceGroup": "[format('rg-{0}', parameters('resourceBaseName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "accountId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment'), '2025-04-01').outputs.accountId.value), createObject('value', ''))]",
+          "principalId": "[if(and(parameters('deployCoreAI'), parameters('deployHostedAgent')), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'agent-deployment'), '2025-04-01').outputs.principalId.value), createObject('value', ''))]"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.46.1.21595",
+              "templateHash": "17145936056111161125"
+            }
+          },
+          "parameters": {
+            "accountId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Foundry account (scope for the role assignment)"
+              }
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID to grant access to"
+              }
+            }
+          },
+          "variables": {
+            "azureAIDeveloperRole": "64702f94-c441-49e6-a78b-ef80e0188fee"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', last(split(parameters('accountId'), '/')))]",
+              "name": "[guid(parameters('accountId'), parameters('principalId'), variables('azureAIDeveloperRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('azureAIDeveloperRole'))]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'agent-deployment')]"
       ]
     },
     {
@@ -979,8 +1074,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "5107434610989684454"
+              "version": "0.46.1.21595",
+              "templateHash": "828672622017854269"
             }
           },
           "parameters": {
@@ -1034,14 +1129,14 @@
             },
             "secondaryModel": {
               "type": "string",
-              "defaultValue": "gpt-4o-mini",
+              "defaultValue": "gpt-4.1-mini",
               "metadata": {
                 "description": "Secondary model for lightweight tasks"
               }
             },
             "secondaryModelVersion": {
               "type": "string",
-              "defaultValue": "2024-07-18",
+              "defaultValue": "2025-04-14",
               "metadata": {
                 "description": "Secondary model version"
               }
@@ -1172,8 +1267,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2683325597229902497"
+              "version": "0.46.1.21595",
+              "templateHash": "18147988833724774628"
             }
           },
           "parameters": {
@@ -1311,8 +1406,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "10081603129377776929"
+              "version": "0.46.1.21595",
+              "templateHash": "14471668516533542266"
             }
           },
           "parameters": {
@@ -1396,7 +1491,7 @@
       ]
     },
     {
-      "condition": "[parameters('deployCoreAI')]",
+      "condition": "[and(parameters('deployCoreAI'), parameters('deployContentUnderstanding'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "cu-deployment",
@@ -1423,8 +1518,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "11889419633813385523"
+              "version": "0.46.1.21595",
+              "templateHash": "17403278478867766868"
             }
           },
           "parameters": {
@@ -1531,8 +1626,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15998866178770448415"
+              "version": "0.46.1.21595",
+              "templateHash": "3950877627731636292"
             }
           },
           "parameters": {
@@ -1643,8 +1738,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2113994244730073109"
+              "version": "0.46.1.21595",
+              "templateHash": "16740037588210648140"
             }
           },
           "parameters": {
@@ -1759,8 +1854,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "18309879709318852650"
+              "version": "0.46.1.21595",
+              "templateHash": "15526104126827029174"
             }
           },
           "parameters": {
@@ -1918,8 +2013,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "6382718827914545213"
+              "version": "0.46.1.21595",
+              "templateHash": "17729079485413299459"
             }
           },
           "parameters": {
@@ -2034,8 +2129,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "12684088864768103389"
+              "version": "0.46.1.21595",
+              "templateHash": "1599622108675260878"
             }
           },
           "parameters": {
@@ -2127,8 +2222,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "6128333275530442054"
+              "version": "0.46.1.21595",
+              "templateHash": "6864384700105193140"
             }
           },
           "parameters": {
@@ -2269,8 +2364,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "1371136641073781092"
+              "version": "0.46.1.21595",
+              "templateHash": "9631753448061174424"
             }
           },
           "parameters": {
@@ -2396,8 +2491,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "5387004779633919357"
+              "version": "0.46.1.21595",
+              "templateHash": "12416334303930622946"
             }
           },
           "parameters": {
@@ -2570,8 +2665,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "7379713087771450773"
+              "version": "0.46.1.21595",
+              "templateHash": "903004055284045425"
             }
           },
           "parameters": {
@@ -2746,8 +2841,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "13484959987272305698"
+              "version": "0.46.1.21595",
+              "templateHash": "847936638725110702"
             }
           },
           "parameters": {
@@ -2857,8 +2952,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "18051350050057966993"
+              "version": "0.46.1.21595",
+              "templateHash": "15009369064022107366"
             }
           },
           "parameters": {
@@ -2966,8 +3061,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "11218921195532865330"
+              "version": "0.46.1.21595",
+              "templateHash": "4242992018607834008"
             }
           },
           "parameters": {
@@ -3107,8 +3202,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "13813224422936959864"
+              "version": "0.46.1.21595",
+              "templateHash": "12346470000744554395"
             }
           },
           "parameters": {
@@ -3291,8 +3386,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "1263840909623018122"
+              "version": "0.46.1.21595",
+              "templateHash": "16365269154328721980"
             }
           },
           "parameters": {
@@ -3455,9 +3550,7 @@
           "aiSearchResourceId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
           "sqlServerId": "[if(parameters('deployDataLayer'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment'), '2025-04-01').outputs.serverId.value), createObject('value', ''))]",
           "keyVaultId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]",
-          "storageAccountId": {
-            "value": ""
-          }
+          "storageAccountId": "[if(parameters('deployCoreAI'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-storage-deployment'), '2025-04-01').outputs.id.value), createObject('value', ''))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -3465,8 +3558,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15341933992701476566"
+              "version": "0.46.1.21595",
+              "templateHash": "16553964900228168102"
             }
           },
           "parameters": {
@@ -3617,6 +3710,7 @@
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'identities-deployment')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'search-deployment')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'ai-storage-deployment')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'sql-deployment')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'kv-deployment')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'models-deployment')]"
@@ -3650,8 +3744,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "5960258039763892037"
+              "version": "0.46.1.21595",
+              "templateHash": "641865414968432049"
             }
           },
           "parameters": {
@@ -3734,8 +3828,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "11425090043858855838"
+              "version": "0.46.1.21595",
+              "templateHash": "7127200546278029249"
             }
           },
           "parameters": {
@@ -3841,9 +3935,13 @@
       "type": "string",
       "value": "[format('rg-{0}', parameters('resourceBaseName'))]"
     },
-    "aiFoundryEndpoint": {
+    "FOUNDRY_PROJECT_ENDPOINT": {
       "type": "string",
-      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'aihub-deployment'), '2025-04-01').outputs.name.value, 'Not deployed — enable deployCoreAI')]"
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment'), '2025-04-01').outputs.projectEndpoint.value, 'Not deployed — enable deployCoreAI')]"
+    },
+    "aiFoundryAccountEndpoint": {
+      "type": "string",
+      "value": "[if(parameters('deployCoreAI'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}', parameters('resourceBaseName'))), 'Microsoft.Resources/deployments', 'foundry-deployment'), '2025-04-01').outputs.accountEndpoint.value, 'Not deployed')]"
     },
     "openAIEndpoint": {
       "type": "string",

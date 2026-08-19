@@ -62,11 +62,16 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'agent'
-          image: !empty(containerImage) ? containerImage : '${containerRegistry.properties.loginServer}/quote-intelligence-agent:latest'
+          // Placeholder until `azd deploy` builds and pushes the real orchestrator image
+          image: !empty(containerImage) ? containerImage : 'mcr.microsoft.com/k8se/quickstart:latest'
           resources: {
             cpu: json('1.0')
             memory: '2Gi'
           }
+          env: [for key in items(environmentVariables): {
+            name: key.key
+            value: key.value
+          }]
         }
       ]
       scale: {

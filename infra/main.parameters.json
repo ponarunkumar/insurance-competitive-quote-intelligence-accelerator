@@ -11,6 +11,9 @@
     "deployCoreAI": {
       "value": true
     },
+    "deployHostedAgent": {
+      "value": false
+    },
     "deployDataLayer": {
       "value": false
     },

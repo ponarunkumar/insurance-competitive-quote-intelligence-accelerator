@@ -7,7 +7,7 @@ metadata:
 services:
   orchestrator:
     project: ./src
-    host: ai.foundry
+    host: ai.endpoint
     language: python
 
 infra:
@@ -27,20 +27,20 @@ pipeline:
 
 hooks:
   preprovision:
-    shell: pwsh
+    shell: sh
     run: |
-      Write-Host "Validating Azure subscription and region availability..."
+      echo "Validating Azure subscription and region availability..."
       az account show --query "{subscription: name, id: id}" -o table
   postprovision:
-    shell: pwsh
+    shell: sh
     run: |
-      Write-Host "Running post-provision setup..."
-      Write-Host "  - Seeding Azure SQL with sample data"
-      Write-Host "  - Creating AI Search indexes"
-      Write-Host "  - Registering agents in Foundry project"
+      echo "Running post-provision setup..."
+      echo "  - Seeding Azure SQL with sample data"
+      echo "  - Creating AI Search indexes"
+      echo "  - Registering agents in Foundry project"
   postdeploy:
-    shell: pwsh
+    shell: sh
     run: |
-      Write-Host "Deployment complete!"
-      Write-Host "  Foundry Project: $(azd env get-value FOUNDRY_PROJECT_ENDPOINT)"
-      Write-Host "  Agent Playground: https://ai.azure.com"
+      echo "Deployment complete!"
+      echo "  Foundry Project: $(azd env get-value FOUNDRY_PROJECT_ENDPOINT)"
+      echo "  Agent Playground: https://ai.azure.com"

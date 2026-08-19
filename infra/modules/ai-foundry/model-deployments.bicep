@@ -24,10 +24,10 @@ param primaryModelVersion string = '2024-11-20'
 param primaryModelCapacity int = 80
 
 @description('Secondary model for lightweight tasks')
-param secondaryModel string = 'gpt-4o-mini'
+param secondaryModel string = 'gpt-4.1-mini'
 
 @description('Secondary model version')
-param secondaryModelVersion string = '2024-07-18'
+param secondaryModelVersion string = '2025-04-14'
 
 @description('Secondary model capacity')
 param secondaryModelCapacity int = 120

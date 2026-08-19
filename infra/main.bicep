@@ -56,6 +56,12 @@ param tags object = {
 @description('Stage 1: Deploy Core AI services (AI Foundry, OpenAI, Speech, Search, Monitor)')
 param deployCoreAI bool = true
 
+@description('Optional: deploy the Container Apps hosted-agent runtime (registry, environment, container app). Requires a built agent image via `azd deploy`; leave off until the image exists so it does not block core AI provisioning.')
+param deployHostedAgent bool = false
+
+@description('Optional service: Deploy Azure AI Content Understanding. This is not available in all regions and can block provisioning in some subscriptions/locations.')
+param deployContentUnderstanding bool = false
+
 @description('Stage 2: Deploy Data Layer (Azure SQL, Cosmos DB, Fabric)')
 param deployDataLayer bool = false
 
@@ -138,42 +144,56 @@ module appInsights 'modules/core/app-insights.bicep' = if (deployCoreAI) {
 
 // --- AI Foundry (Agent Runtime & Hosting) ---
 
-module aiHub 'modules/ai-foundry/ai-foundry-hub.bicep' = if (deployCoreAI) {
-  name: 'aihub-deployment'
+module aiStorage 'modules/ai-foundry/managed-storage.bicep' = if (deployCoreAI) {
+  name: 'ai-storage-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
-    name: 'aih-${resourceBaseName}'
+    name: 'sa${replace(resourceBaseName, '-', '')}ml'
     location: location
     tags: tags
-    keyVaultId: deployCoreAI ? keyVault.outputs.id : ''
-    appInsightsId: deployCoreAI ? appInsights.outputs.id : ''
-    storageAccountId: ''
   }
   dependsOn: [resourceGroup]
 }
 
-module aiProject 'modules/ai-foundry/ai-foundry-project.bicep' = if (deployCoreAI) {
-  name: 'aiproject-deployment'
+module foundryProject 'modules/ai-foundry/foundry-project.bicep' = if (deployCoreAI) {
+  name: 'foundry-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
-    name: 'aip-${resourceBaseName}'
+    accountName: 'aif-${resourceBaseName}'
+    projectName: '${resourceBaseName}-project'
     location: location
     tags: tags
-    hubId: deployCoreAI ? aiHub.outputs.id : ''
   }
+  dependsOn: [resourceGroup]
 }
 
-module hostedAgent 'modules/ai-foundry/hosted-agent.bicep' = if (deployCoreAI) {
+module hostedAgent 'modules/ai-foundry/hosted-agent.bicep' = if (deployCoreAI && deployHostedAgent) {
   name: 'agent-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
     name: '${resourceBaseName}-agent'
     location: location
     tags: tags
-    projectId: deployCoreAI ? aiProject.outputs.id : ''
+    projectId: deployCoreAI ? foundryProject.outputs.projectId : ''
     containerRegistryId: ''
+    environmentVariables: deployCoreAI ? {
+      FOUNDRY_PROJECT_ENDPOINT: foundryProject.outputs.projectEndpoint
+      FOUNDRY_MODEL_NAME: 'gpt-4o'
+      AZURE_LOCATION: location
+      APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.outputs.connectionString
+    } : {}
   }
-  dependsOn: [resourceGroup]
+  dependsOn: [resourceGroup, foundryProject, appInsights]
+}
+
+// Grant the hosted agent's managed identity access to call the Foundry project
+module hostedAgentFoundryAccess 'modules/ai-foundry/foundry-rbac.bicep' = if (deployCoreAI && deployHostedAgent) {
+  name: 'foundry-rbac-deployment'
+  scope: az.resourceGroup('rg-${resourceBaseName}')
+  params: {
+    accountId: deployCoreAI ? foundryProject.outputs.accountId : ''
+    principalId: (deployCoreAI && deployHostedAgent) ? hostedAgent.outputs.principalId : ''
+  }
 }
 
 module modelDeployments 'modules/ai-foundry/model-deployments.bicep' = if (deployCoreAI) {
@@ -211,7 +231,7 @@ module documentIntelligence 'modules/ai-services/document-intelligence.bicep' = 
   dependsOn: [resourceGroup]
 }
 
-module contentUnderstanding 'modules/ai-services/content-understanding.bicep' = if (deployCoreAI) {
+module contentUnderstanding 'modules/ai-services/content-understanding.bicep' = if (deployCoreAI && deployContentUnderstanding) {
   name: 'cu-deployment'
   scope: az.resourceGroup('rg-${resourceBaseName}')
   params: {
@@ -408,9 +428,9 @@ module rbacAssignments 'modules/governance/rbac-assignments.bicep' = if (deployI
     aiSearchResourceId: deployCoreAI ? aiSearch.outputs.id : ''
     sqlServerId: deployDataLayer ? azureSql.outputs.serverId : ''
     keyVaultId: deployCoreAI ? keyVault.outputs.id : ''
-    storageAccountId: ''
+    storageAccountId: deployCoreAI ? aiStorage.outputs.id : ''
   }
-  dependsOn: [agentIdentities]
+  dependsOn: [agentIdentities, aiStorage]
 }
 
 module purview 'modules/governance/purview-policies.bicep' = if (deployIntegration) {
@@ -437,7 +457,8 @@ module defender 'modules/governance/defender-config.bicep' = if (deployIntegrati
 
 // Stage 1 outputs (Core AI)
 output resourceGroupName string = 'rg-${resourceBaseName}'
-output aiFoundryEndpoint string = deployCoreAI ? aiHub.outputs.name : 'Not deployed — enable deployCoreAI'
+output FOUNDRY_PROJECT_ENDPOINT string = deployCoreAI ? foundryProject.outputs.projectEndpoint : 'Not deployed — enable deployCoreAI'
+output aiFoundryAccountEndpoint string = deployCoreAI ? foundryProject.outputs.accountEndpoint : 'Not deployed'
 output openAIEndpoint string = deployCoreAI ? modelDeployments.outputs.endpoint : 'Not deployed'
 output aiSearchEndpoint string = deployCoreAI ? aiSearch.outputs.endpoint : 'Not deployed'
 output speechEndpoint string = deployCoreAI ? speechService.outputs.endpoint : 'Not deployed'
